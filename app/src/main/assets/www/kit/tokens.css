@@ -356,6 +356,48 @@
   --hd-text-disabled: #779372;
   --hd-glow-strength: 1;
 }
+[data-hd-mode=violet] {
+  --hd-ground: #0b0912;
+  --hd-ground-top: #1f1433;
+  --hd-ground-image:
+    linear-gradient(
+      180deg,
+      #1f1433 0%,
+      #191029 12%,
+      #120d1e 30%,
+      #0b0912 55%,
+      #08070d 100%);
+  --hd-surface: #16112a;
+  --hd-surface-2: #1c1432;
+  --hd-row: #120e21;
+  --hd-plate: rgba(22, 17, 42, var(--hd-a-plate));
+  --hd-chrome: #a77bff;
+  --hd-chrome-hot: #b993ff;
+  --hd-chrome-dim: #9672e6;
+  --hd-chrome-fill: #4a2f86;
+  --hd-chrome-deep: #1c1232;
+  --hd-chrome-rgb:
+    167,
+    123,
+    255;
+  --hd-act: #8fef3c;
+  --hd-act-soft: #7fd436;
+  --hd-act-dim: #6fae3a;
+  --hd-act-fill: #2c4c19;
+  --hd-on-act: var(--hd-c-ink-dark);
+  --hd-act-rgb:
+    143,
+    239,
+    60;
+  --hd-select-bg: #3a2766;
+  --hd-select-ink: #f0eaff;
+  --hd-focus: #8fef3c;
+  --hd-text: #ddd5ee;
+  --hd-text-strong: #f0eaff;
+  --hd-text-meta: #a79cba;
+  --hd-text-disabled: #7c6f99;
+  --hd-glow-strength: 1;
+}
 :root,
 [data-hd-mode] {
   --hd-line: rgba(var(--hd-chrome-rgb), .9);

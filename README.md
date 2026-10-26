@@ -29,7 +29,7 @@ A 45-second tour of the favorites, Apps, moving an app, Inputs and Jump To: [wat
   its art fading in behind.
 - **Music bar.** What's playing, the artist, the track time, and play/pause. Long titles scroll like a car stereo.
 - **Jump To.** Hold Back anywhere for the quick panel: the TV's picture and sound settings, inputs, the names of
-  the two rows, an accent color that tints everything, how soon the away screen comes on, Lite mode, Lime mode (a lime-on-teal look), online extras,
+  the two rows, an accent color that tints everything, how soon the away screen comes on, clock seconds, Lite mode, a theme (Normal, Lime or Violet), online extras,
   setup, app order and About.
 - **Away screen.** After 5 minutes of nothing, the screen dims to a clock that moves every 20 seconds, so nothing
   burns in. Pick 1, 3, 5 or 10 minutes in Jump To.

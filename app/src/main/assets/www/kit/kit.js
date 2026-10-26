@@ -681,7 +681,7 @@
       });
     });
   }
-  var MODES = ["normal", "alert", "lime"];
+  var MODES = ["normal", "alert", "lime", "violet"];
   function setMode(mode, target) {
     if (MODES.indexOf(mode) === -1) mode = "normal";
     var el = target || html;
