@@ -8,6 +8,7 @@
     const de = document.documentElement;
     const s = Math.min(de.clientWidth / 1920, de.clientHeight / 1080);
     stage.style.transform = `translate(-50%, -50%) scale(${s})`;
+    stage.classList.add('is-fit');
   };
   addEventListener('resize', fit);
   fit();

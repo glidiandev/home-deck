@@ -44,7 +44,7 @@
   // the 1920x1080 stage, scaled to the screen (clientWidth: a WebView can report a wider innerWidth)
   const stage = $('stage');
   const fit = () => { const de = document.documentElement, s = Math.min(de.clientWidth / 1920, de.clientHeight / 1080);
-                      stage.style.transform = `translate(-50%, -50%) scale(${s})`; };
+                      stage.style.transform = `translate(-50%, -50%) scale(${s})`; stage.classList.add('is-fit'); };
   addEventListener('resize', fit); fit();
 
   function tick() {

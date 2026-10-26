@@ -8,7 +8,9 @@ body { -webkit-font-smoothing: antialiased; }
   transform-origin: center;
   overflow: hidden;
   user-select: none;
+  visibility: hidden;   /* until it is scaled: unscaled, its top-left corner would show in the middle of the screen */
 }
+.stage.is-fit { visibility: visible; }
 .stage [data-f] { cursor: pointer; }
 
 /* The "opening <app>" screen shown when a tile is selected; index.html styles its content. */
