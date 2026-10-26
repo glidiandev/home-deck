@@ -1129,13 +1129,12 @@
   // (the script in <head> puts the saved one on early; keep its list in this order)
   const THEMES = [
     { mode: 'normal', name: 'Normal', note: 'Your color again.' },
-    { mode: 'lime', name: 'Lime', sub: 'Lime mode // lime display', note: 'Lime on teal-black.' },
-    { mode: 'violet', name: 'Violet', sub: 'Violet mode // violet display', note: 'Violet with a green edge.' },
+    { mode: 'lime', name: 'Lime', note: 'Lime on teal-black.' },
+    { mode: 'violet', name: 'Violet', note: 'Violet with a green edge.' },
   ];
-  function setTheme(n, quiet) {
+  function setTheme(n, quiet) {   // the line under the name keeps the TV's name and display in every theme
     const t = THEMES[n] || THEMES[0];
     HD.setMode(t.mode);
-    $('brandSub').textContent = t.sub || deckSub;
     J.theme.i = THEMES.indexOf(t); store.set('theme', J.theme.i);
     if (!quiet) toast('area', 'Theme', t.mode === 'normal' ? 'Back to normal' : `${t.name} theme on`, t.note);
   }
