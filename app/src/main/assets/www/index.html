@@ -540,7 +540,7 @@
 
   <div class="jump" id="jump">
     <div class="hd-panel hd-panel--spine-act">
-      <div class="hd-panel__head">Jump To <span class="jump__ver">Home Deck v0.1 // glidian.dev</span></div>
+      <div class="hd-panel__head">Jump To <span class="jump__ver">Home Deck // glidian.dev</span></div>
       <div id="jList"></div>
       <div class="jump__foot">
         <span class="hd-hint"><span class="hd-key">&larr;</span><span class="hd-key">&rarr;</span>Change</span>
@@ -671,6 +671,10 @@
   const DEV = NATIVE ? NATIVE.device() : null;
   const deckSub = DEV ? `${DEV.name || 'This TV'} // ${DEV.panel >= 2160 ? '4K' : DEV.panel >= 1080 ? 'HD' : 'TV'} display` : 'Living room // 4K display';
   $('brandSub').textContent = deckSub;
+  // the version on show (Jump To's header, About) is the installed app's own, so a release can't leave an old one behind;
+  // the browser demo has no app around it and shows its copy's version (bump this one with build.gradle)
+  const VER = (NATIVE && NATIVE.appInfo('dev.glidian.homedeck').version) || '0.2.1';
+  document.querySelector('.jump__ver').textContent = `Home Deck v${VER} // glidian.dev`;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   /* =====================================================================
@@ -1251,7 +1255,7 @@
   }
   function okJump(id) {
     const o = J[id];
-    if (id === 'about') { closeJump(); return toast('area', 'About', 'Home Deck v0.1', 'Fan-made and free. App names and logos belong to their owners. Not affiliated with or endorsed by any of them.', 15000); }
+    if (id === 'about') { closeJump(); return toast('area', 'About', `Home Deck v${VER}`, 'Fan-made and free. App names and logos belong to their owners. Not affiliated with or endorsed by any of them.', 15000); }
     if (id === 'order') { closeJump(); store.set('order', {}); renderApps(); arm(); return toast('job', 'Apps', 'Order reset', 'Each group is back in its usual order.'); }
     if (o.open) {
       closeJump();
