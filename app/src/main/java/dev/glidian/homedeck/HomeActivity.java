@@ -82,6 +82,7 @@ public class HomeActivity extends Activity {
         pkgs.addAction(Intent.ACTION_PACKAGE_REMOVED);
         pkgs.addAction(Intent.ACTION_PACKAGE_CHANGED);
         pkgs.addDataScheme("package");
+        appsSig = launchableSig();
         registerReceiver(packagesChanged, pkgs);
     }
 
@@ -241,11 +242,31 @@ public class HomeActivity extends Activity {
         handler.postDelayed(sendInputs, 400);
     }
 
+    /** Package broadcasts come in bursts, and most (a system app toggling its own components after boot) don't change
+     *  what the home screen shows. Wait for the burst to settle, then reload only if the launchable apps really changed. */
+    private String appsSig;
+    private String launchableSig() {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (android.content.pm.ResolveInfo r : getPackageManager().queryIntentActivities(
+                new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER), 0)) {
+            out.add(r.activityInfo.packageName + "/" + r.activityInfo.name + "@" + r.activityInfo.applicationInfo.sourceDir);
+        }
+        java.util.Collections.sort(out);
+        return String.join("\n", out);
+    }
+    private final Runnable packagesSettled = () -> {
+        String now = launchableSig();
+        if (now.equals(appsSig)) return;
+        appsSig = now;
+        if (resumed) reload();
+        else appsChanged = true;
+    };
+
     private final BroadcastReceiver packagesChanged = new BroadcastReceiver() {
         @Override
         public void onReceive(Context c, Intent i) {
-            if (resumed) reload();
-            else appsChanged = true;
+            handler.removeCallbacks(packagesSettled);
+            handler.postDelayed(packagesSettled, 2000);
         }
     };
 
@@ -294,6 +315,7 @@ public class HomeActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        handler.removeCallbacks(packagesSettled);
         unregisterReceiver(packagesChanged);
         if (web != null) web.destroy();
         super.onDestroy();
