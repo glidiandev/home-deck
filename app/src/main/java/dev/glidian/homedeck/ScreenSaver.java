@@ -2,6 +2,9 @@ package dev.glidian.homedeck;
 
 import android.graphics.Color;
 import android.service.dreams.DreamService;
+import android.util.Log;
+import android.view.ViewGroup;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -41,6 +44,17 @@ public class ScreenSaver extends DreamService {
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
                 return true;
             }
+
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                // the renderer was killed or crashed; end the screen saver instead of taking the app down
+                Log.w(HomeActivity.TAG, "WebView renderer gone, crashed=" + detail.didCrash());
+                if (view.getParent() instanceof ViewGroup) ((ViewGroup) view.getParent()).removeView(view);
+                view.destroy();
+                if (view == web) web = null;
+                finish();
+                return true;
+            }
         });
         setContentView(web);
     }
@@ -54,9 +68,11 @@ public class ScreenSaver extends DreamService {
 
     @Override
     public void onDetachedFromWindow() {
-        if (!HomeActivity.showing) web.pauseTimers();
-        web.destroy();
-        web = null;
+        if (web != null) {
+            if (!HomeActivity.showing) web.pauseTimers();
+            web.destroy();
+            web = null;
+        }
         super.onDetachedFromWindow();
     }
 }
