@@ -890,9 +890,9 @@
        <div class="tiles tiles--apps">${l.map(i => appTile(i, 'art--sm')).join('')}</div></div>`).join('');
   }
   // glide the Apps view so the row you are on sits at the top (the last rows stop at the bottom)
-  function scrollApps(row) {
+  function scrollApps(row, el) {
     const sc = $('apps'), view = sc.parentNode;
-    const y = Math.max(0, Math.min(row.offsetTop, sc.offsetHeight - view.clientHeight + 70));
+    const y = Math.max(0, Math.min(Math.max(row.offsetTop, row.offsetTop + ((el ? el.offsetTop + el.offsetHeight - view.clientHeight + 70 : 0))), sc.offsetHeight - view.clientHeight + 70));
     sc.style.transform = `translateY(${-y}px)`;
     sc.style.perspectiveOrigin = `50% ${row.offsetTop + row.offsetHeight / 2}px`;   // the lean pivots on the row you are on
   }
@@ -1082,7 +1082,7 @@
     deck.querySelectorAll('.row').forEach(r => { r.classList.toggle('is-active', r === row); if (r !== row) r.style.setProperty('--lean', '0deg'); });
     if (row) {
       lastIn[sec] = el;
-      if (row.closest('#apps')) scrollApps(row);
+      if (row.closest('#apps')) scrollApps(row, el);
       const r = el.getBoundingClientRect(), rr = row.getBoundingClientRect();
       row.style.setProperty('--lean', `${(-((r.left + r.width / 2 - rr.left) / rr.width - .5) * 4).toFixed(2)}deg`);
     }
