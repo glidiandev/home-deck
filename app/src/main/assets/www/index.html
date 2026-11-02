@@ -1397,6 +1397,7 @@
   }
   function endMove(place) {
     const { el, box, app } = moving, fav = box.id === 'fav';
+    box.classList.remove('has-moving');
     moving = null;
     document.querySelectorAll('.hd-toast').forEach(t => t.remove());
     if (place && fav) { favs = [...box.children].map(t => t.dataset.app != null ? +t.dataset.app : null); saveFavs(); }
