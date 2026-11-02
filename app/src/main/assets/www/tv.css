@@ -21,6 +21,8 @@
 :root[data-hd-crt="on"] body::after { mix-blend-mode: normal; }
 /* The Apps list is drawn once and then only slid up and down. */
 .apps-scroll { will-change: transform; }
+/* The Favourites row is drawn on its own layer too; inside the 3D section some TV GPUs drop the focused tile's glow and full opacity. */
+#favRow { will-change: transform; }
 
 /* The scan line crosses the hero by moving, not by changing its position in the layout. */
 .hero.hd-sweep::after { top: -4px; }
