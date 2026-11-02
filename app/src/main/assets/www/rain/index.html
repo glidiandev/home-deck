@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rainy city</title>
+<link rel="stylesheet" href="../base.css">
+<link rel="stylesheet" href="../kit/tokens.css">
+<link rel="stylesheet" href="rain.css">
+<script>
+  // the home screen's theme and accent color, so the rain's neon matches it (same order as THEMES in index.html)
+  try {
+    const mode = ['normal', 'lime', 'violet'][JSON.parse(localStorage.getItem('homedeck-theme'))];
+    if (mode) document.documentElement.setAttribute('data-hd-mode', mode);
+    const acc = JSON.parse(localStorage.getItem('homedeck-acc-hex'));
+    if (acc) document.documentElement.style.setProperty('--hd-act', acc);
+  } catch {}
+</script>
+</head>
+<body>
+<!-- A screen saver: looking out of a window at a neon city in the rain, the time glowing in it. ?view=window or
+     ?view=downpour. Shown full screen inside the away screen (index.html) and the screen saver (away.html). -->
+<div class="stage hd-root" id="stage">
+  <div class="saver">
+    <canvas class="city" id="city" width="80" height="45"></canvas>
+    <div class="time" id="time">
+      <div class="time__now"><span data-hm></span><small data-ap></small></div>
+      <div class="time__date" data-date></div>
+    </div>
+    <canvas class="air" id="air" width="480" height="270"></canvas>
+    <canvas class="glass" id="drops" width="960" height="540"></canvas>
+    <canvas class="glass" id="glass" width="960" height="540"></canvas>
+    <div class="glass-fog"></div>
+  </div>
+</div>
+<script>
+  // what the rain scripts need from the page: fitting the 1920x1080 stage to the screen, the time, and the theme's colors
+  window.HD = {
+    fit(stage) {
+      const go = () => { const de = document.documentElement, s = Math.min(de.clientWidth / 1920, de.clientHeight / 1080);
+                         stage.style.transform = `translate(-50%, -50%) scale(${s})`; stage.classList.add('is-fit'); };
+      addEventListener('resize', go); go();
+    },
+    time(d = new Date()) {
+      const h = d.getHours(), two = n => String(n).padStart(2, '0');
+      return { hm: `${h % 12 || 12}:${two(d.getMinutes())}`, ap: h < 12 ? 'am' : 'pm',
+               date: d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) };
+    },
+    css: name => getComputedStyle(document.documentElement).getPropertyValue(name).trim(),
+  };
+</script>
+<script src="core.js"></script>
+<script src="towers.js"></script>
+<script>
+  // The two views. Window: looking straight across at the towers in the rain, the city far out of focus.
+  // Downpour: right up against the glass in a storm, heavier rain, more streams and more lightning.
+  const VIEWS = {
+    window: {
+      seed: 23, ...RainCity.towers({ winSize: 2.4, winChance: .75, signScale: 1.4 }),
+      focus: 'far',
+      lanes: [{ y: 50, s: .55, n: 3, depth: 0, spread: 30 }, { y: 110, s: .6, n: 2, depth: 0, spread: 30 },
+              { y: 60, s: .9, n: 4, depth: 1, spread: 24 }, { y: 100, s: 1, n: 5, depth: 1, spread: 24 }, { y: 135, s: 1.1, n: 3, depth: 1, spread: 10 }],
+      chaseY: [45, 115], closeY: [40, 130],
+    },
+    downpour: {
+      seed: 7, ...RainCity.towers({ winSize: 2.6, winChance: .7, signs: 14, signScale: 1.5, haze: [['chrome', .32], ['magenta', .12]], searchlight: false }),
+      focus: 'far', storm: 1.6, lightning: [16, 40],
+      lanes: [{ y: 70, s: 1, n: 4, depth: 1, spread: 40 }, { y: 120, s: 1.3, n: 3, depth: 1, spread: 20 }],
+      chaseY: [55, 120], chaseS: 1.8, closeY: [40, 130],
+    },
+  };
+  RainCity(VIEWS[new URLSearchParams(location.search).get('view')] || VIEWS.window);
+</script>
+</body>
+</html>

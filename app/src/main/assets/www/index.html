@@ -424,6 +424,7 @@
   .standby__pos.fade { opacity: 0; }
   .standby__clock { color: var(--hd-chrome); font-size: 200px; text-shadow: var(--hd-glow-text); }
   .standby__clock .hd-num__frac { color: var(--hd-chrome-dim); }
+  .standby__rain { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
 
   .boot { position: absolute; inset: 0; z-index: 1300; background: var(--hd-c-void); display: grid; place-items: center;
           transition: opacity var(--hd-t-slow) var(--hd-ease-out); }
@@ -1162,6 +1163,7 @@
   const swatch = n => ACCENTS[n][1] || 'var(--hd-act)';
   function applyAccent(n) {
     const [, hex, dim] = ACCENTS[n];
+    store.set('acc-hex', hex);                                  // the rainy city screen savers read it (rain/index.html)
     root.classList.toggle('has-acc', !!hex);
     if (!hex) return ['--acc', '--acc-dim', '--acc-rgb'].forEach(p => root.style.removeProperty(p));
     const v = parseInt(hex.slice(1), 16);
@@ -1174,6 +1176,9 @@
     const i = n >= 0 ? n : old > 0 ? old + 1 : 0;
     return i >= 0 && i < ACCENTS.length ? i : 0;
   };
+  // what the away screen (and the TV's screen saver, away.html) shows: the dim clock, or one of the rainy city views
+  const SAVERS = [['Clock', null], ['Window', 'window'], ['Downpour', 'downpour']];
+  const savedSaver = () => { const i = store.get('saver', 0); return i >= 0 && i < SAVERS.length ? i : 0; };
   const J = {
     pic:   { name: 'Picture mode', icon: 'picture', vals: ['Cinema', 'Vivid', 'Game', 'Standard'], i: 0 },
     snd:   { name: 'Sound output', icon: 'sound', vals: ['TV speakers', 'Soundbar (HDMI ARC)', 'Soundbar (optical)', 'Bluetooth'], i: store.get('snd', 1) },
@@ -1182,11 +1187,12 @@
     sep:   null,
     row1:  { name: 'Row 1 name', vals: ['Favorites', 'Pinned', 'My apps', 'Quick launch', 'Most used', 'Custom…'], i: store.get('row1n', 0), custom: store.get('row1c', '') },
     row2:  { name: 'Row 2 name', vals: ['Jump back in', 'Recently used', 'Recent', 'Back to it', 'Last opened', 'Custom…'], i: store.get('row2n', 0), custom: store.get('row2c', '') },
+    theme: { name: 'Theme', vals: THEMES.map(t => t.name), i: 0 },
     acc:   { name: 'Accent color', vals: ACCENTS.map(a => a[0]), i: savedAccent() },
     away:  { name: 'Away screen', vals: ['1 min', '3 min', '5 min', '10 min'], i: [0, 1, 2, 3].includes(store.get('away', 2)) ? store.get('away', 2) : 2 },
+    saver: { name: 'Screen saver', vals: SAVERS.map(s => s[0]), i: savedSaver() },
     secs:  { name: 'Clock seconds', vals: ['On', 'Off'], i: store.get('secs', 0) === 1 ? 1 : 0 },
     lite:  { name: 'Lite mode', vals: ['Off', 'On'], i: 0 },
-    theme: { name: 'Theme', vals: THEMES.map(t => t.name), i: 0 },
     ext:   { name: 'Online extras', vals: ['Open'], i: 0 },
     setup: { name: 'Setup', vals: ['Run again'], i: 0 },
   };
@@ -1237,6 +1243,7 @@
     if (id === 'acc') { store.set('accent', o.i); applyRows(); }
     if (id === 'snd') store.set('snd', o.i);
     if (id === 'away') { store.set('away', o.i); IDLE = 60000 * AWAY_MIN[o.i]; poke(); }
+    if (id === 'saver') store.set('saver', o.i);
     if (id === 'secs') { store.set('secs', o.i); tick(); }
     if (id === 'lite') { setLite(o.i === 1); return; }
     if (id === 'theme') { setTheme(o.i); return drawJump(id); }
@@ -1891,8 +1898,18 @@
     document.querySelectorAll('.hd-toast').forEach(t => t.remove());
     sleeping = true; spot(); standby.classList.add('on');
     driftTimer = setInterval(drift, 20000);
+    const view = SAVERS[J.saver.i][1];
+    if (view && !reduce) {                                     // a rainy city instead of the clock, full screen over everything
+      rain = document.createElement('iframe'); rain.className = 'standby__rain'; rain.setAttribute('aria-hidden', 'true');
+      rain.src = `rain/index.html?view=${view}${isLite() ? '&light' : ''}`;
+      standby.appendChild(rain); sbPos.hidden = true;
+    }
   }
-  function wake() { sleeping = false; clearInterval(driftTimer); standby.classList.remove('on'); showHints(); }
+  let rain = null;
+  const endRain = () => { if (rain) { rain.remove(); rain = null; } sbPos.hidden = false; };
+  // the rain tells us if this TV can't keep it smooth even when lighter: back to the clock for this time
+  addEventListener('message', e => { if (e.data && e.data.rain === 'too-slow' && rain && e.source === rain.contentWindow) endRain(); });
+  function wake() { sleeping = false; clearInterval(driftTimer); endRain(); standby.classList.remove('on'); showHints(); }
   const poke = () => { clearTimeout(idleTimer); idleTimer = setTimeout(sleep, IDLE); };
   poke();
 

@@ -29,10 +29,14 @@ A 45-second tour of the favorites, Apps, moving an app, Inputs and Jump To: [wat
   its art fading in behind.
 - **Music bar.** What's playing, the artist, the track time, and play/pause. Long titles scroll like a car stereo.
 - **Jump To.** Hold Back anywhere for the quick panel: the TV's picture and sound settings, inputs, the names of
-  the two rows, an accent color that tints everything, how soon the away screen comes on, clock seconds, Lite mode, a theme (Normal, Lime or Violet), online extras,
+  the two rows, a theme (Normal, Lime or Violet), an accent color that tints everything, how soon the away screen comes on, what it shows, clock seconds, Lite mode, online extras,
   setup, app order and About.
 - **Away screen.** After 5 minutes of nothing, the screen dims to a clock that moves every 20 seconds, so nothing
   burns in. Pick 1, 3, 5 or 10 minutes in Jump To.
+- **Rainy city.** Or let the away screen look out of a window at a neon city in the rain: blurry lights, drops
+  running down the glass, traffic, the odd police chase and lightning, with the time glowing in the city. Two views,
+  Window and Downpour (a storm, right up against the glass), in your theme's colors. Pick it in Jump To > Screen
+  saver. On a TV that can't keep it smooth, the rain gets lighter, and if that's still too much, the clock comes back.
 - **Screen saver.** The same away screen as your TV's screen saver, for when you're in another app. See
   [Screen saver](#screen-saver).
 - **First-run setup.** Pick your favorites, a color and names for your inputs. Skip it if you like; it's in Jump To
@@ -106,8 +110,8 @@ used last, so you might just see "no signal" there.
 
 ## Screen saver
 
-Home Deck also adds its away screen to Android's screen savers: the dim clock and the date, moving every 20 seconds.
-If the weather is on in Home Deck, it shows that too. Any button wakes the TV, and the TV still goes to sleep on its
+Home Deck also adds its away screen to Android's screen savers: the dim clock and the date, moving every 20 seconds,
+or the rainy city if you picked it in Jump To > Screen saver. If the weather is on in Home Deck, the clock shows that too. Any button wakes the TV, and the TV still goes to sleep on its
 own timer.
 
 Pick **Home Deck** in Settings > Device Preferences > Screen saver. If your TV hides that menu, use adb:
@@ -283,6 +287,8 @@ Don't want the tile art? It's in `app/src/main/assets/www/icons/`. Delete an app
 - Grew out of [KIDŌ](https://github.com/glidiandev/kido), which started from
   [cleanyourtv](https://github.com/Gathin23/cleanyourtv) by Gathin. To clear the rest of a TV's preinstalled clutter,
   see cleanyourtv.
+- Fixes in v0.2 by [dineshalphaque](https://github.com/dineshalphaque): recovering from a crashed web view, the
+  focus glow and fading on Favorites, fewer reloads when apps update, and the Apps tab scrolling to long groups.
 - Fonts, all under the SIL Open Font License: [Michroma](https://fonts.google.com/specimen/Michroma),
   [Rajdhani](https://fonts.google.com/specimen/Rajdhani), [Saira](https://fonts.google.com/specimen/Saira) and
   [Share Tech Mono](https://fonts.google.com/specimen/Share+Tech+Mono).

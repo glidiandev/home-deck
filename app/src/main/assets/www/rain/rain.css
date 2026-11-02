@@ -1,0 +1,13 @@
+/* The rainy city views' shared layers: the out-of-focus city, the time glowing in it, rain outside, the glass. */
+.city { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+.air { position: absolute; inset: 0; width: 1920px; height: 1080px; mix-blend-mode: screen; }
+.glass { position: absolute; inset: 0; width: 1920px; height: 1080px; mix-blend-mode: screen; }   /* drops only ever add light */
+.time { position: absolute; left: 0; top: 0; display: grid; justify-items: start; gap: 4px; transition: transform 50s linear;
+        filter: blur(1.6px); opacity: .9; }
+.time__now { font-family: var(--hd-font-num); font-weight: 500; font-size: 190px; line-height: 1; color: #fff1ef; white-space: nowrap;
+             text-shadow: 0 0 8px var(--hd-chrome), 0 0 30px var(--hd-chrome), 0 0 80px var(--hd-chrome); }
+.time__now small { font-size: .48em; color: #f2fffd; text-shadow: 0 0 8px var(--hd-act), 0 0 30px var(--hd-act), 0 0 70px var(--hd-act); }
+.time__date { font-family: var(--hd-font-ui); font-weight: 400; font-size: 32px; letter-spacing: .32em; text-transform: uppercase; color: #f2fffd;
+              text-shadow: 0 0 14px var(--hd-act), 0 0 30px var(--hd-act); }
+.glass-fog { position: absolute; inset: 72% 0 0; pointer-events: none;                          /* a little condensation along the bottom */
+             background: linear-gradient(180deg, rgba(170, 185, 220, 0), rgba(170, 185, 220, .07)); }

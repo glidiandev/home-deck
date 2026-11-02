@@ -9,7 +9,8 @@
 <link rel="stylesheet" href="kit/components.css">
 <style>
   /* The screen saver (ScreenSaver.java): the home screen's away screen on its own, a dim clock that moves every 20
-     seconds so nothing burns in. It reads only the home screen's own settings: the weather, and only when it is on. */
+     seconds so nothing burns in, or the rainy city picked in Jump To > Screen saver. It reads only the home screen's
+     own settings: the weather, and only when it is on. */
   html, body { background: #000; }
   .standby { position: absolute; inset: 0; background: var(--hd-c-void); opacity: 0;
              transition: opacity var(--hd-t-slow) var(--hd-ease-out); }
@@ -19,6 +20,7 @@
   .standby__clock { color: var(--hd-chrome); font-size: 200px; text-shadow: var(--hd-glow-text); }
   .standby__clock .hd-num__frac { color: var(--hd-chrome-dim); }
   .standby__wx.is-stale { opacity: .5; }
+  .rain { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
 </style>
 </head>
 <body>
@@ -59,6 +61,16 @@
   function drift() { if (reduce) return spot(); sbPos.classList.add('fade'); setTimeout(() => { spot(); sbPos.classList.remove('fade'); }, 650); }
   spot(); setInterval(drift, 20000);
   requestAnimationFrame(() => requestAnimationFrame(() => $('standby').classList.add('on')));
+
+  // the home screen's Screen saver choice (Jump To): a rainy city instead of the clock, unless motion is turned down.
+  // If this TV can't keep it smooth even when lighter, the rain says so and the clock comes back.
+  const view = [null, 'window', 'downpour'][store.get('saver', 0)];
+  if (view && !reduce) {
+    const rain = document.createElement('iframe'); rain.className = 'rain'; rain.setAttribute('aria-hidden', 'true');
+    rain.src = `rain/index.html?view=${view}`;
+    stage.appendChild(rain); sbPos.hidden = true;
+    addEventListener('message', e => { if (e.data && e.data.rain === 'too-slow' && e.source === rain.contentWindow) { rain.remove(); sbPos.hidden = false; } });
+  }
 
   // Weather: only when it's switched on in the home screen (Jump To > Online extras), from the same service and
   // the same saved reading, refreshed every 30 minutes. Off, this page never calls the network.
