@@ -182,6 +182,10 @@ adb shell pm disable-user --user 0 com.google.android.tvlauncher
 adb shell pm disable-user --user 0 com.google.android.apps.tv.launcherx
 ```
 
+> [!NOTE]
+> On some Google TVs, switching the launcher off can leave you with a blank screen. To undo it, run:
+> `adb shell pm enable com.google.android.apps.tv.launcherx`
+
 > [!IMPORTANT]
 > If you switch the stock launcher off, turn it back on **before** you ever remove Home Deck. See
 > [Uninstall](#uninstall).
