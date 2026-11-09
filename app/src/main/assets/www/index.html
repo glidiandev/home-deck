@@ -1397,7 +1397,9 @@
     if (id === 'pin' || id === 'move') {
       saveFavs(); renderFavs();
       optsOpen = false; opts.classList.remove('on'); oList.innerHTML = '';
-      trapped = false; saved = []; arm();
+      trapped = false;
+      saved.forEach(el => el.isConnected && el.setAttribute('data-f', '')); saved = [];
+      arm();
       cur = null; TV.focus(stage.querySelector(`.section:not(.is-off) [data-app="${app}"]`) || $('fav').querySelector('[data-f]'));
       return;
     }
