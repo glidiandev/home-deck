@@ -1900,6 +1900,7 @@
   function sleep() {
     if (sleeping || setupOpen) return;
     if (moving) endMove(false);
+    closeKbd(false);   // the keyboard sits on top; close it (without saving) before the overlay under it
     endCall(false); closeOpts(); closeJump(); closeInfo(); closeSearch(); endLink();
     document.querySelectorAll('.hd-toast').forEach(t => t.remove());
     sleeping = true; spot(); standby.classList.add('on');
