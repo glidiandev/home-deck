@@ -20,7 +20,7 @@ final class NowPlaying {
     private final Handler handler;
     private final Runnable onChange;
     private final MediaSessionManager sessions;
-    private MediaController current;
+    private volatile MediaController current;
     private boolean watching;
 
     NowPlaying(Context c, Handler handler, Runnable onChange) {
@@ -114,33 +114,39 @@ final class NowPlaying {
 
     /** True when there is something to show. */
     boolean active() {
-        return current != null && hasTitle(current);
+        MediaController c = current;
+        return c != null && hasTitle(c);
     }
 
     String packageName() {
-        return current != null ? current.getPackageName() : null;
+        MediaController c = current;
+        return c != null ? c.getPackageName() : null;
     }
 
     String title() {
-        MediaMetadata m = current != null ? current.getMetadata() : null;
+        MediaController c = current;
+        MediaMetadata m = c != null ? c.getMetadata() : null;
         return m != null ? m.getString(MediaMetadata.METADATA_KEY_TITLE) : null;
     }
 
     String artist() {
-        MediaMetadata m = current != null ? current.getMetadata() : null;
+        MediaController c = current;
+        MediaMetadata m = c != null ? c.getMetadata() : null;
         if (m == null) return null;
         String a = m.getString(MediaMetadata.METADATA_KEY_ARTIST);
         return a != null ? a : m.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST);
     }
 
     String album() {
-        MediaMetadata m = current != null ? current.getMetadata() : null;
+        MediaController c = current;
+        MediaMetadata m = c != null ? c.getMetadata() : null;
         return m != null ? m.getString(MediaMetadata.METADATA_KEY_ALBUM) : null;
     }
 
     /** The track's length in seconds, or -1 when the app doesn't share it. */
     long totalSeconds() {
-        MediaMetadata m = current != null ? current.getMetadata() : null;
+        MediaController c = current;
+        MediaMetadata m = c != null ? c.getMetadata() : null;
         long d = m != null ? m.getLong(MediaMetadata.METADATA_KEY_DURATION) : 0;
         return d > 0 ? d / 1000 : -1;
     }
@@ -151,7 +157,8 @@ final class NowPlaying {
 
     /** How far into the track, in seconds, or -1 when the app doesn't say. */
     long elapsedSeconds() {
-        PlaybackState s = current != null ? current.getPlaybackState() : null;
+        MediaController c = current;
+        PlaybackState s = c != null ? c.getPlaybackState() : null;
         if (s == null || s.getPosition() == PlaybackState.PLAYBACK_POSITION_UNKNOWN) return -1;
         long pos = s.getPosition();
         if (s.getState() == PlaybackState.STATE_PLAYING) {
@@ -161,18 +168,20 @@ final class NowPlaying {
     }
 
     void playPause() {
-        if (current == null) return;
-        if (playing()) current.getTransportControls().pause();
-        else current.getTransportControls().play();
+        MediaController c = current;
+        if (c == null) return;
+        if (stateOf(c) == PlaybackState.STATE_PLAYING) c.getTransportControls().pause();
+        else c.getTransportControls().play();
     }
 
     /** Next or previous track, only if the app says it can. True when it was asked to skip. */
     boolean skip(boolean next) {
-        PlaybackState s = current != null ? current.getPlaybackState() : null;
+        MediaController c = current;
+        PlaybackState s = c != null ? c.getPlaybackState() : null;
         long action = next ? PlaybackState.ACTION_SKIP_TO_NEXT : PlaybackState.ACTION_SKIP_TO_PREVIOUS;
         if (s == null || (s.getActions() & action) == 0) return false;
-        if (next) current.getTransportControls().skipToNext();
-        else current.getTransportControls().skipToPrevious();
+        if (next) c.getTransportControls().skipToNext();
+        else c.getTransportControls().skipToPrevious();
         return true;
     }
 }

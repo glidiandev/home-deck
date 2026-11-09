@@ -261,14 +261,16 @@ final class Bridge {
         put(o, "access", musicAccess);
         if (musicAccess && nowPlaying.active()) {
             String pkg = nowPlaying.packageName();
-            put(o, "pkg", pkg);
-            put(o, "label", labelOf(pkg));
-            put(o, "title", nowPlaying.title());
-            put(o, "artist", nullToEmpty(nowPlaying.artist()));
-            put(o, "album", nullToEmpty(nowPlaying.album()));
-            put(o, "playing", nowPlaying.playing());
-            put(o, "elapsed", nowPlaying.elapsedSeconds());
-            put(o, "total", nowPlaying.totalSeconds());
+            if (pkg != null) {
+                put(o, "pkg", pkg);
+                put(o, "label", labelOf(pkg));
+                put(o, "title", nowPlaying.title());
+                put(o, "artist", nullToEmpty(nowPlaying.artist()));
+                put(o, "album", nullToEmpty(nowPlaying.album()));
+                put(o, "playing", nowPlaying.playing());
+                put(o, "elapsed", nowPlaying.elapsedSeconds());
+                put(o, "total", nowPlaying.totalSeconds());
+            }
         }
         return o.toString();
     }
