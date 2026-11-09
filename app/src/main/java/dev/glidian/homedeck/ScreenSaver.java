@@ -50,6 +50,7 @@ public class ScreenSaver extends DreamService {
                 // the renderer was killed or crashed; end the screen saver instead of taking the app down
                 Log.w(HomeActivity.TAG, "WebView renderer gone, crashed=" + detail.didCrash());
                 if (view.getParent() instanceof ViewGroup) ((ViewGroup) view.getParent()).removeView(view);
+                if (!HomeActivity.showing) view.pauseTimers();
                 view.destroy();
                 if (view == web) web = null;
                 finish();
