@@ -84,6 +84,9 @@ try {
   const CUR_IN = `(() => { const box = cur && cur.closest('${'%BOX%'}'); return !!box; })()`;
 
   const baseline = await run(SNAP);
+  // the overlay stack, as ids: '' when nothing is open
+  const stack = () => run(`popups.map(l => l.id).join(',') || '-'`);
+  const stackIs = async (id, want) => { const got = await stack(); report(id, got === want, `stack=${got}`); };
 
   // the D-pad still reaches the deck: Right from the Home tab lands on the Apps tab (the key handler falls through to edgeMove/vertMove)
   const dpad = async () => {
@@ -163,7 +166,9 @@ try {
   await key('o'); await sleep(300);
   o = await run(`({ optsOpen, trapped })`);
   await openLayer('opts-o-key', '.opts', ` optsOpen=${o.optsOpen}`);
+  await stackIs('opts-o-key:stack-open', 'opts');
   await key('Backspace'); await sleep(250);
+  await stackIs('opts-o-key:stack-closed', '-');
   await closed('opts-o-key');
 
   // ---- opts -> info (nested) -------------------------------------------------------------------------
@@ -174,7 +179,9 @@ try {
   await key('Enter'); await sleep(350);
   const iOpen = await run(`({ infoOpen, trapped })`);
   await openLayer('info-after-opts', '#info', ` infoOpen=${iOpen.infoOpen}`);
+  await stackIs('info-after-opts:stack-open', 'info');
   await key('Backspace'); await sleep(300);
+  await stackIs('info-after-opts:stack-closed', '-');
   await closed('info-after-opts');
 
   // ---- pin (BUG A is fixed on main: runOpt's pin/move branch restores the baseline manually) ---------
@@ -188,6 +195,7 @@ try {
   await key('Enter'); await sleep(400);
   const favsAfter = await run(`favs.includes(${pinApp})`);
   report('opts-pin:pinned', pinStep >= 0 && pinApp != null && favsAfter !== favsBefore, `row=${pinStep} app=${pinApp} pinned ${favsBefore}->${favsAfter}`);
+  await stackIs('opts-pin:stack', '-');
   await closed('opts-pin');
 
   // ---- move mode: all keys are intercepted while moving (the key handler's move branch) -------------------------------
@@ -230,7 +238,9 @@ try {
   await sleep(400);
   const suOpen = await run(`({ setupOpen, trapped })`);
   await openLayer('setup-open', '#setup', ` setupOpen=${suOpen.setupOpen}`);
+  await stackIs('setup-open:stack', 'setup');
   await key('Backspace'); await sleep(400);
+  await stackIs('setup-Back:stack', '-');
   await closed('setup-Back');
 
   // ---- setup stepped through with Next until Done (#stNext in the tv:select handler -> setupGo() -> closeSetup(true) at step 4) ---
@@ -243,7 +253,87 @@ try {
     await sleep(120);
     await key('Enter'); await sleep(400);
   }
+  await stackIs('setup-Done:stack', '-');
   await closed('setup-Done');
+
+  // ---- Options name step: a re-render replaces the tile, Back still lands inside #inp on the same port ----
+  await run(`TV.focus(document.querySelector('[data-tab="2"]'))`);
+  await sleep(300);
+  const nameBack = await run(`(() => {
+    const tiles = [...document.querySelectorAll('#inp [data-port]')];
+    for (const t of tiles) {
+      cur = null; TV.focus(t);
+      const ev = new KeyboardEvent('keydown', { key: 'o', bubbles: true });
+      t.dispatchEvent(ev);
+      const o = document.querySelector('#opts');
+      if (o && o.classList.contains('on')) {
+        const row = oList.querySelector('[data-opt="rename"]');
+        if (row) { cur = null; TV.focus(row); return { found: true, port: t.dataset.port, tile: true }; }
+        cur = null; TV.focus(t);
+        t.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true }));
+      }
+    }
+    return { found: false, port: null, tile: false };
+  })()`);
+  await run(`window.__t = document.querySelector('#inp [data-port="${nameBack.port}"]');`);
+  await sleep(150);
+  await key('ArrowRight'); await sleep(250);
+  await key('ArrowLeft'); await sleep(250);
+  const nameReRendered = await run(`!window.__t.isConnected`);
+  await key('Backspace'); await sleep(300);
+  const nameAfter = await run(`({ stack: popups.map(l => l.id).join(',') || '-', inInp: !!cur?.closest('#inp'), port: cur?.dataset.port ?? null, trapped, name: cur?.dataset.port ?? cur?.dataset.name ?? null })`);
+  report('opts-name-Back:focus', nameBack.found === true && nameReRendered === true && nameAfter.stack === '-' && nameAfter.inInp === true && nameAfter.port === nameBack.port && nameAfter.trapped === false, `found=${nameBack.found} rerendered=${nameReRendered} stack=${nameAfter.stack} inInp=${nameAfter.inInp} port=${nameAfter.port}/${nameBack.port} trapped=${nameAfter.trapped}`);
+  await run(`TV.focus(document.querySelector('[data-tab="0"]'))`);
+  await sleep(300);
+  await closed('opts-name-Back');
+
+  // ---- setup opened from the Jump button: Back lands on the favorites row (post-renderAll back target) ------
+  await run(`cur = null; TV.focus($('jumpBtn')); openSetup();`);
+  await sleep(400);
+  await key('Backspace'); await sleep(400);
+  const suJump = await run(`({ stack: popups.map(l => l.id).join(',') || '-', fav: cur === $('fav').querySelector('[data-fi]') })`);
+  report('setup-from-jumpBtn:focus', suJump.stack === '-' && suJump.fav === true, `stack=${suJump.stack} favFocus=${suJump.fav}`);
+  await closed('setup-from-jumpBtn');
+
+  // ---- kbd over Options (rename): Escape leaves Options on top with focus inside .opts --------------------
+  await openOptsOnTile();
+  await run(`openKbd('test', '')`);
+  await sleep(350);
+  await stackIs('kbd-over-opts:stack-open', 'opts,kbd');
+  await key('Escape'); await sleep(300);
+  const kOpts = await run(`({ stack: popups.map(l => l.id).join(',') || '-', ko: kbdOpen, oo: optsOpen, inOpts: !!cur?.closest('.opts') })`);
+  report('kbd-over-opts:stack-closed', kOpts.stack === 'opts' && kOpts.ko === false && kOpts.oo === true && kOpts.inOpts === true, `stack=${kOpts.stack} kbdOpen=${kOpts.ko} optsOpen=${kOpts.oo} curInOpts=${kOpts.inOpts}`);
+  await key('Backspace'); await sleep(300);
+  await closed('kbd-over-opts');
+
+  // ---- Extras -> Setup hand-off (extras on the stack, setup step 3 hosts the extras rows) ----------------
+  await run(`openExtras()`);
+  await sleep(400);
+  await stackIs('handoff-extras:stack', 'extras');
+  await key('Escape'); await sleep(300);
+  await closed('handoff-extras');
+  await run(`openSetup()`);
+  await sleep(400);
+  for (let n = 0; n < 3; n++) {
+    await run(`(() => { cur = null; TV.focus($('stNext')); })()`);
+    await sleep(120);
+    await key('Enter'); await sleep(400);
+  }
+  const hoStep = await run(`({ step, rows: document.querySelectorAll('#exSetup [data-ex]').length, host: exHost?.id ?? null })`);
+  report('handoff-setup-step3', hoStep.step === 3 && hoStep.rows > 0 && hoStep.host === 'exSetup', `step=${hoStep.step} rows=${hoStep.rows} exHost=${hoStep.host}`);
+  await run(`(() => { const row = document.querySelector('#exSetup [data-ex="city"]'); if (row) { cur = null; TV.focus(row); } return !!row; })()`);
+  await sleep(150);
+  await run(`exOk('city')`);
+  await sleep(350);
+  await stackIs('kbd-over-setup:stack-open', 'setup,kbd');
+  await key('Escape'); await sleep(300);
+  await run(`redrawEx('unit')`);
+  await sleep(250);
+  const kSetup = await run(`({ stack: popups.map(l => l.id).join(',') || '-', so: setupOpen, inSetup: !!cur?.closest('#setup'), host: exHost?.id ?? null, rows: exHost ? exHost.querySelectorAll('[data-ex]').length : 0 })`);
+  report('kbd-over-setup:stack-closed', kSetup.stack === 'setup' && kSetup.so === true && kSetup.inSetup === true && kSetup.host === 'exSetup' && kSetup.rows > 0, `stack=${kSetup.stack} setupOpen=${kSetup.so} curInSetup=${kSetup.inSetup} exHost=${kSetup.host} rows=${kSetup.rows}`);
+  await key('Backspace'); await sleep(400);
+  await stackIs('handoff-setup-Back:stack', '-');
+  await closed('handoff-setup-Back');
 
   // ---- kbd over jump (test-sleep-keyboard's recipe) ---------------------------------------------------
   await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
@@ -294,11 +384,11 @@ try {
   await sleep(350);
   const kOverEx = await run(`({ kbdOpen, extrasOpen, trapped })`);
   const kExStack = await run(`popups.map(l => l.id).join(',') || '-'`);
-  report('kbd-over-extras:stack-open', kExStack === 'kbd', `stack=${kExStack}`);
+  report('kbd-over-extras:stack-open', kExStack === 'extras,kbd', `stack=${kExStack}`);
   await openLayer('kbd-over-extras', '#kbd', ` kbdOpen=${kOverEx.kbdOpen} extrasOpen=${kOverEx.extrasOpen}`);
   await key('Escape'); await sleep(300);
   const kExStackClosed = await run(`({ stack: popups.map(l => l.id).join(',') || '-', ko: kbdOpen, eo: extrasOpen })`);
-  report('kbd-over-extras:stack-closed', kExStackClosed.stack === '-' && kExStackClosed.ko === false && kExStackClosed.eo === true, `stack=${kExStackClosed.stack} kbdOpen=${kExStackClosed.ko} extrasOpen=${kExStackClosed.eo}`);
+  report('kbd-over-extras:stack-closed', kExStackClosed.stack === 'extras' && kExStackClosed.ko === false && kExStackClosed.eo === true, `stack=${kExStackClosed.stack} kbdOpen=${kExStackClosed.ko} extrasOpen=${kExStackClosed.eo}`);
   await run(`if (extrasOpen) closeExtras()`);
   await closed('kbd-over-extras');
 

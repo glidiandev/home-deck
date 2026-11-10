@@ -1225,7 +1225,7 @@
     if (i < 0) return;
     const entry = popups.splice(i, 1)[0];
     LAYERS[id].onClose();
-    if (!LAYERS[id].ownSave) untrap(entry.back);
+    if (!LAYERS[id].ownSave) untrap(LAYERS[id].back ? LAYERS[id].back() : entry.back);
   }
   function closeAll() { while (popups.length) closeLayer(topPopup().id); }
   Object.defineProperty(globalThis, 'jumpOpen', { get: () => isOpen('jump'), configurable: true });
@@ -1325,7 +1325,9 @@
 
   /* ---- options (hold OK): apps and inputs ---- */
   const opts = $('opts'), oList = $('oList');
-  let optsOpen = false, optsFor = null, beforeOpts = null;
+  let optsFor = null, beforeOpts = null;
+  Object.defineProperty(globalThis, 'optsOpen', { get: () => isOpen('opts'), configurable: true });
+  LAYERS.opts = { el: opts, back: () => beforeOpts, onOpen: () => {}, onClose: () => { opts.classList.remove('on'); oList.innerHTML = ''; } };
   const BUILT_IN = ['Play Store', 'Media Player'];
   function optItems() {
     if (optsFor.port) {
@@ -1356,11 +1358,11 @@
     if (!cur || optsOpen || trapped) return;
     const d = cur.dataset;
     if (d.app == null && !d.port) return;
-    optsFor = d.app != null ? { app: +d.app } : { port: d.port }; optsOpen = true; beforeOpts = cur;
+    optsFor = d.app != null ? { app: +d.app } : { port: d.port }; beforeOpts = cur;
     $('oTitle').textContent = 'Options // ' + (d.app != null ? APPS[+d.app].name : portName(PORTS.find(x => x.id === d.port)));
     const sr = stage.getBoundingClientRect(), kk = sr.width / 1920, cr = cur.getBoundingClientRect();
     const x = (cr.left - sr.left) / kk, ty = (cr.top - sr.top) / kk;
-    trap(opts); drawOpts();
+    openLayer('opts'); drawOpts();
     opts.style.left = Math.max(96, Math.min(1824 - 520, x)) + 'px';
     opts.classList.add('on');
     opts.style.top = Math.max(190, ty - opts.offsetHeight - 18) + 'px';
@@ -1368,8 +1370,7 @@
   }
   function closeOpts(refocusIt = true) {
     if (!optsOpen) return;
-    optsOpen = false; opts.classList.remove('on'); oList.innerHTML = '';
-    untrap(refocusIt ? beforeOpts : beforeOpts);
+    closeLayer('opts');
   }
   // only one port can be the audio out; marking it moves the sound output to the soundbar over ARC
   function setArc(p, on) {
@@ -1412,7 +1413,7 @@
     if (id === 'del') { if (NATIVE) NATIVE.uninstall(APPS[app].pkg); else toast('warn', 'Uninstall', `${name} stays`, 'This is a preview, so nothing is removed.'); }
     if (id === 'pin' || id === 'move') {
       saveFavs(); renderFavs();
-      optsOpen = false; opts.classList.remove('on'); oList.innerHTML = '';
+      popups.splice(popups.map(l => l.id).lastIndexOf('opts'), 1); opts.classList.remove('on'); oList.innerHTML = '';
       trapped = false;
       saved.forEach(el => el.isConnected && el.setAttribute('data-f', '')); saved = [];
       arm();
@@ -1470,9 +1471,9 @@
 
   /* ---- Info as a scanner ---- */
   const info = $('info');
-  let infoOpen = false, beforeInfo = null;
+  Object.defineProperty(globalThis, 'infoOpen', { get: () => isOpen('info'), configurable: true });
+  LAYERS.info = { el: info, onOpen: () => {}, onClose: () => { info.hidden = true; $('iClose').removeAttribute('data-f'); } };
   function openInfo(o) {
-    infoOpen = true; beforeInfo = cur;
     const r = HD.rng(o.app != null ? APPS[o.app].name : o.port), num = (a, b) => a + Math.floor(r() * (b - a));
     let art, title, tags, glow;
     if (o.app != null) {
@@ -1496,7 +1497,7 @@
     setGlitchText($('iTitle'), title);
     $('iArt').innerHTML = art; $('iArt').style.setProperty('--glow', glow);
     $('iTags').innerHTML = tags.map(([k, v]) => `<span class="hd-tag"><span class="hd-tag__tick"></span>${k} <b>${esc(v)}</b></span>`).join('');
-    info.hidden = false; trap(info);
+    info.hidden = false; openLayer('info');
     // leader lines from points on the art to each tag
     const tagEls = [...$('iTags').children], box = info.querySelector('.info__box').getBoundingClientRect(), k = box.width / 1320;
     const pts = [[490, 170], [470, 250], [450, 320], [470, 400], [490, 470]];
@@ -1508,7 +1509,7 @@
     const sa = $('iArt'); sa.classList.remove('go'); void sa.offsetWidth; sa.classList.add('go');
     $('iClose').setAttribute('data-f', ''); TV.focus($('iClose')); HD.glitch($('iTitle'));
   }
-  function closeInfo() { if (!infoOpen) return; infoOpen = false; info.hidden = true; $('iClose').removeAttribute('data-f'); untrap(beforeInfo); }
+  function closeInfo() { if (!infoOpen) return; closeLayer('info'); }
 
   /* ---- Scan: search with a letter grid, typing or voice ---- */
   const search = $('search');
@@ -1539,7 +1540,13 @@
 
   /* ---- first-run setup: favorites, color, input names ---- */
   const setup = $('setup');
-  let setupOpen = false, step = 0;
+  let step = 0;
+  Object.defineProperty(globalThis, 'setupOpen', { get: () => isOpen('setup'), configurable: true });
+  LAYERS.setup = { el: setup, back: () => $('fav').querySelector('[data-fi]'), onOpen: () => {}, onClose: () => {
+    setup.hidden = true; setup.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f'));
+    store.set('setup-done', true);
+    renderAll();
+  } };
   const STEP_T = [['Pick your favorites', 'Up to seven apps for the top row. OK picks or unpicks.'],
                   ['Pick a color', 'It tints the whole screen. You can change it later in Jump To.'],
                   ['Name your inputs', 'Left and right choose a name. Auto uses the name the device gives itself.'],
@@ -1558,7 +1565,7 @@
   function openSetup() {
     if (setupOpen) return;
     if (trapped) return;
-    setupOpen = true; step = 0; setup.hidden = false; trap(setup); drawSetup();
+    step = 0; setup.hidden = false; openLayer('setup'); drawSetup();
     TV.focus(setup.querySelector('#stBody [data-f]'));
   }
   function setupGo(d) {
@@ -1568,9 +1575,7 @@
   }
   function closeSetup(done) {
     if (!setupOpen) return;
-    setupOpen = false; setup.hidden = true; setup.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f'));
-    store.set('setup-done', true);
-    renderAll(); untrap($('fav').querySelector('[data-fi]'));
+    closeLayer('setup');
     if (done) { toast('reward', 'Setup', 'All set', 'Run it again any time from Jump To.'); setTimeout(() => showHints(), 4000); }
     else showHints();
   }
@@ -1733,16 +1738,15 @@
     exStep(id, 1);
   }
   const extras = $('extras'), exList = $('exList');
-  let extrasOpen = false, beforeExtras = null;
+  Object.defineProperty(globalThis, 'extrasOpen', { get: () => isOpen('extras'), configurable: true });
+  LAYERS.extras = { el: extras, onOpen: () => { extras.hidden = false; drawEx(exList); TV.focus(exList.querySelector('[data-f]')); }, onClose: () => { extras.hidden = true; exList.innerHTML = ''; } };
   function openExtras() {
     if (extrasOpen || trapped) return;
-    extrasOpen = true; beforeExtras = cur; trap(extras);
-    extras.hidden = false; drawEx(exList);
-    TV.focus(exList.querySelector('[data-f]'));
+    openLayer('extras');
   }
   function closeExtras() {
     if (!extrasOpen) return;
-    extrasOpen = false; extras.hidden = true; exList.innerHTML = ''; untrap(beforeExtras);
+    closeLayer('extras');
   }
   drawWx();
 
