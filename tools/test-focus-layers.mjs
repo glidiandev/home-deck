@@ -128,8 +128,12 @@ try {
   await sleep(150);
   await key('j'); await sleep(350);
   const jOpen = await run(`({ jumpOpen, trapped })`);
+  const jStack = await run(`({ n: popups.length, top: topPopup()?.id ?? null, is: isOpen('jump'), jo: jumpOpen })`);
+  report('jump-stack:open', jStack.n === 1 && jStack.top === 'jump' && jStack.is === true && jStack.jo === true, `n=${jStack.n} top=${jStack.top} isOpen=${jStack.is} jumpOpen=${jStack.jo}`);
   await openLayer('jump-J', '.jump', ` jumpOpen=${jOpen.jumpOpen}`);
   await key('Escape'); await sleep(250);
+  const jClosedStack = await run(`({ n: popups.length, top: topPopup()?.id ?? null, is: isOpen('jump'), jo: jumpOpen })`);
+  report('jump-stack:closed', jClosedStack.n === 0 && jClosedStack.top === null && jClosedStack.is === false && jClosedStack.jo === false, `n=${jClosedStack.n} top=${jClosedStack.top} isOpen=${jClosedStack.is} jumpOpen=${jClosedStack.jo}`);
   await closed('jump-J');
 
   // a long Back opens it: the test holds Back 700 ms, past the escTimer hold in the keydown handler (a short Back is keyup backUp())
@@ -249,8 +253,9 @@ try {
   const kOpen = await run(`({ kbdOpen, jumpOpen, trapped })`);
   await openLayer('kbd-over-jump', '#kbd', ` kbdOpen=${kOpen.kbdOpen} jumpOpen=${kOpen.jumpOpen}`);
   await key('Escape'); await sleep(300);
-  const stillJump = await run(`({ jumpOpen, trapped, visible: !document.querySelector('.jump')?.classList.contains('on') })`);
+  const stillJump = await run(`({ jumpOpen, trapped, visible: !document.querySelector('.jump')?.classList.contains('on'), stack: popups.map(l => l.id).join(',') })`);
   const jumpBackOk = stillJump.jumpOpen === true && stillJump.visible === false;
+  report('kbd-over-jump:stack', stillJump.stack === 'jump', `stack=${stillJump.stack || '-'}`);
   await key('Escape'); await sleep(300);
   const closedOk = await closed('kbd-over-jump');
   if (closedOk && !jumpBackOk) report('kbd-over-jump-still-open', false, `jumpOpen=${stillJump.jumpOpen}`);

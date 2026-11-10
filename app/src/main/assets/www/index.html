@@ -1210,7 +1210,25 @@
     J.music = { name: 'Music bar', vals: [NATIVE.nowPlaying().access ? 'On' : 'Off // OK to turn on'], i: 0, open: 'listener' };
     J.tv = { name: 'All TV settings', vals: ['Open'], i: 0, open: 'all' };
   }
-  let jumpOpen = false, beforeJump = null;
+  const popups = [];
+  const topPopup = () => popups[popups.length - 1] || null;
+  const isOpen = id => popups.some(l => l.id === id);
+  const LAYERS = { jump: { el: jump, onOpen: () => { jump.classList.add('on'); drawJump(); TV.focus(jList.querySelector('.jl')); }, onClose: () => { jump.classList.remove('on'); jList.innerHTML = ''; } } };
+  function openLayer(id) {
+    const entry = { id, back: cur };
+    popups.push(entry);
+    trap(LAYERS[id].el);
+    LAYERS[id].onOpen();
+  }
+  function closeLayer(id) {
+    const i = popups.map(l => l.id).lastIndexOf(id);
+    if (i < 0) return;
+    const entry = popups.splice(i)[0];
+    LAYERS[id].onClose();
+    untrap(entry.back);
+  }
+  function closeAll() { while (popups.length) closeLayer(topPopup().id); }
+  Object.defineProperty(globalThis, 'jumpOpen', { get: () => isOpen('jump'), configurable: true });
   function drawJump(keep) {
     J.inp.vals = ['Home', ...switchable().map(p => `HDMI ${p.n}${portName(p) !== `HDMI ${p.n}` ? ' // ' + portName(p) : ''}`), 'Live TV'];
     J.inp.i = Math.min(J.inp.i, J.inp.vals.length - 1);
@@ -1232,14 +1250,12 @@
   function openJump() {
     if (jumpOpen || trapped) return;
     closeOpts(false);
-    jumpOpen = true; beforeJump = cur; trap(jump);
-    jump.classList.add('on'); drawJump();
-    TV.focus(jList.querySelector('.jl')); HD.glitch(jump);
+    openLayer('jump');
+    HD.glitch(jump);
   }
   function closeJump() {
     if (!jumpOpen) return;
-    jumpOpen = false; jump.classList.remove('on'); jList.innerHTML = '';
-    untrap(beforeJump);
+    closeLayer('jump');
   }
   function stepJump(id, d) {
     const o = J[id]; o.i = (o.i + d + o.vals.length) % o.vals.length;
