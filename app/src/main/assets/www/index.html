@@ -1217,15 +1217,15 @@
   function openLayer(id) {
     const entry = { id, back: cur };
     popups.push(entry);
-    trap(LAYERS[id].el);
+    if (!LAYERS[id].ownSave) trap(LAYERS[id].el);
     LAYERS[id].onOpen();
   }
   function closeLayer(id) {
     const i = popups.map(l => l.id).lastIndexOf(id);
     if (i < 0) return;
-    const entry = popups.splice(i)[0];
+    const entry = popups.splice(i, 1)[0];
     LAYERS[id].onClose();
-    untrap(entry.back);
+    if (!LAYERS[id].ownSave) untrap(entry.back);
   }
   function closeAll() { while (popups.length) closeLayer(topPopup().id); }
   Object.defineProperty(globalThis, 'jumpOpen', { get: () => isOpen('jump'), configurable: true });
@@ -1512,7 +1512,9 @@
 
   /* ---- Scan: search with a letter grid, typing or voice ---- */
   const search = $('search');
-  let searchOpen = false, query = '', beforeSearch = null;
+  let query = '';
+  Object.defineProperty(globalThis, 'searchOpen', { get: () => isOpen('search'), configurable: true });
+  LAYERS.search = { el: search, onOpen: () => { query = ''; $('sHeard').textContent = ''; search.hidden = false; drawSearch(); TV.focus(search.querySelector('.skey')); }, onClose: () => { search.hidden = true; search.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f')); } };
   const KEYS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
   $('sKeys').innerHTML = KEYS.map(c => `<button class="hd-btn skey" type="button" data-key="${c}">${c}</button>`).join('') +
     '<button class="hd-btn skey skey--wide" type="button" data-key=" ">Space</button><button class="hd-btn skey skey--wide" type="button" data-key="DEL">Delete</button>';
@@ -1525,11 +1527,9 @@
   }
   function openSearch() {
     if (searchOpen || trapped) return;
-    searchOpen = true; beforeSearch = cur; query = ''; $('sHeard').textContent = '';
-    search.hidden = false; trap(search); drawSearch();
-    TV.focus(search.querySelector('.skey'));
+    openLayer('search');
   }
-  function closeSearch() { if (!searchOpen) return; searchOpen = false; search.hidden = true; search.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f')); untrap(beforeSearch); }
+  function closeSearch() { if (!searchOpen) return; closeLayer('search'); }
   function typeKey(c) { query = c === 'DEL' ? query.slice(0, -1) : (query + c).slice(0, 24); drawSearch(cur); }
   function voice() {
     if (NATIVE) { $('sHeard').textContent = 'Voice search is coming later. Type the name instead.'; return; }
@@ -1584,7 +1584,9 @@
 
   /* ---- on-screen keyboard: custom row and input names; arrows plus OK, or real typing; Back cancels ---- */
   const kbd = $('kbd');
-  let kbdOpen = false, kbdText = '', kbdCb = null, kbdBack = null, kbdSaved = [];
+  let kbdText = '', kbdCb = null, kbdBack = null, kbdSaved = [];
+  Object.defineProperty(globalThis, 'kbdOpen', { get: () => isOpen('kbd'), configurable: true });
+  LAYERS.kbd = { el: kbd, ownSave: true, onOpen: () => {}, onClose: () => {} };
   $('kKeys').innerHTML = KEYS.map(c => `<button class="hd-btn skey" type="button" data-kkey="${c}">${c}</button>`).join('') +
     '<button class="hd-btn skey skey--wide" type="button" data-kkey=" ">Space</button><button class="hd-btn skey skey--wide" type="button" data-kkey="DEL">Delete</button>';
   function drawKbd() {
@@ -1601,7 +1603,7 @@
     drawKbd();
   }
   function openKbd(title, value, cb) {
-    kbdOpen = true; kbdText = value || ''; kbdCb = cb; kbdBack = cur;
+    openLayer('kbd'); kbdText = value || ''; kbdCb = cb; kbdBack = cur;
     $('kTitle').textContent = title;
     kbdSaved = [...stage.querySelectorAll('[data-f]')].filter(el => !kbd.contains(el));
     kbdSaved.forEach(el => el.removeAttribute('data-f'));
@@ -1610,7 +1612,7 @@
   }
   function closeKbd(save) {
     if (!kbdOpen) return;
-    kbdOpen = false; kbd.hidden = true;
+    closeLayer('kbd'); kbd.hidden = true;
     kbd.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f'));
     kbdSaved.forEach(el => el.isConnected && el.setAttribute('data-f', '')); kbdSaved = [];
     cur = null; if (kbdBack?.isConnected) TV.focus(kbdBack);

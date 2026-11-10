@@ -210,8 +210,12 @@ try {
   await sleep(150);
   await key('/'); await sleep(350);
   const sOpen = await run(`({ searchOpen, trapped })`);
+  const sStack = await run(`({ n: popups.length, top: topPopup()?.id ?? null, so: searchOpen })`);
+  report('search-stack:open', sStack.n === 1 && sStack.top === 'search' && sStack.so === true, `n=${sStack.n} top=${sStack.top} searchOpen=${sStack.so}`);
   await openLayer('search-slash', '#search', ` searchOpen=${sOpen.searchOpen}`);
   await key('Escape'); await sleep(250);
+  const sClosedStack = await run(`({ n: popups.length, so: searchOpen })`);
+  report('search-stack:closed', sClosedStack.n === 0 && sClosedStack.so === false, `n=${sClosedStack.n} searchOpen=${sClosedStack.so}`);
   await closed('search-slash');
 
   // ---- call via `a` (the key handler's shortcuts -> incoming()) ---------------------------------------------------
@@ -251,6 +255,8 @@ try {
     cur = null; TV.focus(items[i]); })()`);
   await key('Enter'); await sleep(400);
   const kOpen = await run(`({ kbdOpen, jumpOpen, trapped })`);
+  const kStack = await run(`popups.map(l => l.id).join(',') || '-'`);
+  report('kbd-over-jump:stack-open', kStack === 'jump,kbd', `stack=${kStack}`);
   await openLayer('kbd-over-jump', '#kbd', ` kbdOpen=${kOpen.kbdOpen} jumpOpen=${kOpen.jumpOpen}`);
   await key('Escape'); await sleep(300);
   const stillJump = await run(`({ jumpOpen, trapped, visible: !document.querySelector('.jump')?.classList.contains('on'), stack: popups.map(l => l.id).join(',') })`);
@@ -287,8 +293,12 @@ try {
   await run(`openKbd('test', '')`);
   await sleep(350);
   const kOverEx = await run(`({ kbdOpen, extrasOpen, trapped })`);
+  const kExStack = await run(`popups.map(l => l.id).join(',') || '-'`);
+  report('kbd-over-extras:stack-open', kExStack === 'kbd', `stack=${kExStack}`);
   await openLayer('kbd-over-extras', '#kbd', ` kbdOpen=${kOverEx.kbdOpen} extrasOpen=${kOverEx.extrasOpen}`);
   await key('Escape'); await sleep(300);
+  const kExStackClosed = await run(`({ stack: popups.map(l => l.id).join(',') || '-', ko: kbdOpen, eo: extrasOpen })`);
+  report('kbd-over-extras:stack-closed', kExStackClosed.stack === '-' && kExStackClosed.ko === false && kExStackClosed.eo === true, `stack=${kExStackClosed.stack} kbdOpen=${kExStackClosed.ko} extrasOpen=${kExStackClosed.eo}`);
   await run(`if (extrasOpen) closeExtras()`);
   await closed('kbd-over-extras');
 
@@ -327,6 +337,24 @@ try {
   await run(`if (!document.querySelector('#extras').hidden) closeExtras()`);
   await sleep(250);
   await closed('sleep-everything-close');
+
+  // ---- sleep() with kbd over jump: closeAll() closes the keyboard first (top of the stack), then Jump --------------
+  await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
+  await sleep(150);
+  await key('j'); await sleep(350);
+  await run(`(() => { J.row1.i = J.row1.vals.indexOf('Custom…'); drawJump('row1'); })()`);
+  await sleep(200);
+  await run(`(() => { const items = [...jList.querySelectorAll('.jl')]; const i = items.findIndex(e => e.dataset.jl === 'row1');
+    cur = null; TV.focus(items[i]); })()`);
+  await key('Enter'); await sleep(400);
+  const skBefore = await run(`popups.map(l => l.id).join(',') || '-'`);
+  await run(`sleep()`);
+  await sleep(250);
+  await run(`wake()`);
+  await sleep(300);
+  const skAfter = await run(`({ stack: popups.map(l => l.id).join(',') || '-', ko: kbdOpen, jo: jumpOpen, hidden: $('kbd').hidden })`);
+  report('sleep-kbd-over-jump:stack', skBefore === 'jump,kbd' && skAfter.stack === '-' && skAfter.ko === false && skAfter.jo === false && skAfter.hidden === true, `was=${skBefore} now=${skAfter.stack} kbdOpen=${skAfter.ko} jumpOpen=${skAfter.jo} kbdHidden=${skAfter.hidden}`);
+  await closed('sleep-kbd-over-jump');
 
   code = fail === 0 ? 0 : 1;
   console.log(`SUMMARY pass=${pass} fail=${fail} xfail=${xfail} xpass=${xpass} total=${pass + fail + xfail + xpass}`);
