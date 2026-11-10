@@ -1906,8 +1906,8 @@
   function sleep() {
     if (sleeping || setupOpen) return;
     if (moving) endMove(false);
-    closeKbd(false);   // the keyboard sits on top; close it (without saving) before the overlay under it
-    endCall(false); closeOpts(); closeJump(); closeInfo(); closeSearch(); closeExtras(); endLink();
+    closeAll();   // every pop-up on the stack, top first (the keyboard before the one under it), without saving
+    endLink();
     document.querySelectorAll('.hd-toast').forEach(t => t.remove());
     sleeping = true; spot(); standby.classList.add('on');
     driftTimer = setInterval(drift, 20000);

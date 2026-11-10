@@ -291,7 +291,7 @@ try {
     await closed(`call-refused-${name}`);
   }
 
-  // ---- the away screen closes an open call (sleep() -> endCall(false)) --------------------------
+  // ---- the away screen closes an open call (sleep() -> closeAll()) --------------------------
   await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
   await sleep(150);
   await key('a'); await sleep(350);
@@ -555,6 +555,25 @@ try {
   const skAfter = await run(`({ stack: popups.map(l => l.id).join(',') || '-', ko: kbdOpen, jo: jumpOpen, hidden: $('kbd').hidden })`);
   report('sleep-kbd-over-jump:stack', skBefore === 'jump,kbd' && skAfter.stack === '-' && skAfter.ko === false && skAfter.jo === false && skAfter.hidden === true, `was=${skBefore} now=${skAfter.stack} kbdOpen=${skAfter.ko} jumpOpen=${skAfter.jo} kbdHidden=${skAfter.hidden}`);
   await closed('sleep-kbd-over-jump');
+
+  // ---- sleep() closes whatever is on the stack, even a pop-up it does not name (closeAll) ------------------
+  await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
+  await sleep(150);
+  const anyBefore = await run(`(() => { const el = document.createElement('div'); el.id = 'probe8'; el.innerHTML = '<button data-f>x</button>';
+    document.querySelector('.stage').appendChild(el); const f0 = document.querySelectorAll('.stage [data-f]').length;
+    LAYERS.probe8 = { el, onOpen: () => TV.focus(el.firstChild), onClose: () => el.remove() };
+    openLayer('probe8'); return { f0, stack: popups.map(l => l.id).join(',') }; })()`);
+  await run(`sleep()`);
+  await sleep(250);
+  await run(`wake()`);
+  await sleep(300);
+  const anyAfter = await run(`({ stack: popups.map(l => l.id).join(',') || '-', gone: !document.getElementById('probe8'),
+    f: document.querySelectorAll('.stage [data-f]').length, deck: !!cur?.closest('.section:not(.is-off)') })`);
+  report('sleep-any-layer', anyBefore.stack === 'probe8' && anyAfter.stack === '-' && anyAfter.gone && anyAfter.f === anyBefore.f0 - 1 && anyAfter.deck,
+    `was=${anyBefore.stack} now=${anyAfter.stack} gone=${anyAfter.gone} f=${anyBefore.f0 - 1}->${anyAfter.f} deck=${anyAfter.deck}`);
+  await run(`(() => { if (isOpen('probe8')) closeLayer('probe8'); delete LAYERS.probe8; })()`);
+  await sleep(250);
+  await closed('sleep-any-layer');
 
   code = fail === 0 ? 0 : 1;
   console.log(`SUMMARY pass=${pass} fail=${fail} xfail=${xfail} xpass=${xpass} total=${pass + fail + xfail + xpass}`);
