@@ -409,7 +409,7 @@ try {
     report('extras-Jump', false, `no-ext-row ${JSON.stringify(await run(`({ jumpOpen, trapped, kbdOpen, extrasOpen, rows: [...jList.querySelectorAll('.jl')].map(e => e.dataset.jl).join(',') })`))}`);
   }
 
-  // ---- extras survive standby: sleep()+wake() does not close extras (invariant b holds, PASS) ----------
+  // ---- the away screen closes Extras: after sleep()+wake() it is gone and the deck has its focus back ----
   await run(`openExtras()`);
   await sleep(400);
   const exBefore = await run(`({ extrasOpen, trapped, f: document.querySelectorAll('.stage [data-f]').length })`);
@@ -420,8 +420,8 @@ try {
   const exAfter = await run(`(() => { const box = document.querySelector('#extras');
     const stray = [...document.querySelectorAll('.stage [data-f]')].filter(el => !box.contains(el)).length;
     return { extrasOpen, trapped, sleeping, f: document.querySelectorAll('.stage [data-f]').length, stray, tabs: document.querySelectorAll('.hd-tab[data-f]').length }; })()`);
-  const surviveOk = exBefore.extrasOpen === true && exAfter.extrasOpen === true && exAfter.trapped === true &&
-    exAfter.f >= 1 && exAfter.stray === 0 && exAfter.tabs === 0;
+  const surviveOk = exBefore.extrasOpen === true && exAfter.extrasOpen === false && exAfter.trapped === false &&
+    exAfter.sleeping === false && exAfter.tabs === 3;
   report('sleep-everything', surviveOk, `extrasOpen ${exBefore.extrasOpen}->${exAfter.extrasOpen} trapped=${exAfter.trapped} f=${exAfter.f} stray=${exAfter.stray} tabs=${exAfter.tabs} sleeping=${exAfter.sleeping}`);
   // tidy up so the next run of the harness starts from the deck
   await run(`if (!document.querySelector('#extras').hidden) closeExtras()`);
