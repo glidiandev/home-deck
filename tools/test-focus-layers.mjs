@@ -79,12 +79,18 @@ try {
     help: $('helpBtn').hasAttribute('data-f'), jump: $('jumpBtn').hasAttribute('data-f'), play: $('rPlay').hasAttribute('data-f'),
     live: $('live').hasAttribute('data-f'),
     tiles: document.querySelectorAll('.section:not(.is-off) [data-fi][data-f]').length,
-    trapped, saved: saved.length, open: [jumpOpen && 'jump', optsOpen && 'opts', infoOpen && 'info', searchOpen && 'search', setupOpen && 'setup', kbdOpen && 'kbd', extrasOpen && 'extras', callOpen && 'call', moving && 'move'].filter(Boolean).join(',') || '-', cur: cur ? (cur.dataset.app ?? cur.dataset.port ?? cur.dataset.tab ?? cur.tagName) : null }))()`;
+    trapped: popups.length > 0, saved: (popups[0]?.saved ?? []).length, open: [jumpOpen && 'jump', optsOpen && 'opts', infoOpen && 'info', searchOpen && 'search', setupOpen && 'setup', kbdOpen && 'kbd', extrasOpen && 'extras', callOpen && 'call', moving && 'move'].filter(Boolean).join(',') || '-', cur: cur ? (cur.dataset.app ?? cur.dataset.port ?? cur.dataset.tab ?? cur.tagName) : null }))()`;
   const STRAY = `(() => { const box = cur && cur.closest('${'%BOX%'}');
     return [...document.querySelectorAll('.stage [data-f]')].filter(el => !box || !box.contains(el)).length; })()`;
   const CUR_IN = `(() => { const box = cur && cur.closest('${'%BOX%'}'); return !!box; })()`;
 
   const baseline = await run(SNAP);
+  // the old trap code is gone: every pop-up keeps its own saved list on the stack
+  const gone = await run(`({ trap: typeof trap, untrap: typeof untrap, trapped: typeof trapped, saved: typeof saved, kbdSaved: typeof kbdSaved, kbdBack: typeof kbdBack, ownSave: 'ownSave' in LAYERS.kbd })`);
+  report('old-code-gone', Object.entries(gone).every(([k, v]) => k === 'ownSave' ? v === false : v === 'undefined'), Object.entries(gone).map(([k, v]) => `${k}=${v}`).join(' '));
+  // the keyboard over a pop-up: only its keys take the remote, and closing it lands on the control that opened it
+  const kbdOnly = async (caseId) => { const n = await run(`[...document.querySelectorAll('.stage [data-f]')].filter(el => !$('kbd').contains(el)).length`); report(caseId, n === 0, `outsideKbd=${n}`); };
+  const kbdBackIs = async (caseId) => { const r = await run(`({ same: cur === window.__kb, opener: !!window.__kb, cur: cur?.dataset.jl ?? cur?.dataset.opt ?? cur?.dataset.ex ?? cur?.id ?? null })`); report(caseId, r.same === true && r.opener === true, `cur=${r.cur} sameAsOpener=${r.same}`); };
   // the overlay stack, as ids: '' when nothing is open
   const stack = () => run(`popups.map(l => l.id).join(',') || '-'`);
   const stackIs = async (id, want) => { const got = await stack(); report(id, got === want, `stack=${got}`); };
@@ -119,19 +125,27 @@ try {
     await key('ArrowUp'); await sleep(120);
     await key('ArrowRight'); await sleep(120);
     const inside = await run(CUR_IN.replace('%BOX%', boxSelector));
-    const info = await run(`(() => ({ trapped, f: document.querySelectorAll('.stage [data-f]').length }))()`);
+    const info = await run(`(() => ({ trapped: popups.length > 0, f: document.querySelectorAll('.stage [data-f]').length }))()`);
     const ok = stray === 0 && inside === true && info.f >= 1 && info.trapped === true;
     report(caseId + ':open', ok, `stray=${stray} curIn=${inside} f=${info.f} trapped=${info.trapped}${extra}`);
     return ok;
   };
 
 
+  // ---- the radio card redrawn while a pop-up is open (drawRadio): its play button stays held by the pop-up ----
+  await run(`openJump()`); await sleep(400);
+  await run(`drawRadio()`); await sleep(150);
+  const rh = await run(`({ stack: popups.map(l => l.id).join(',') || '-', play: $('rPlay').hasAttribute('data-f'), held: popups[0]?.saved?.includes($('rPlay')) ?? null })`);
+  report('radio-held', rh.stack === 'jump' && rh.play === false, `stack=${rh.stack} play=${rh.play} held=${rh.held}`);
+  await run(`closeJump()`);
+  await closed('radio-held');
+
   // ---- Jump To ---------------------------------------------------------------------------------------
   // open via `j` (the key handler's shortcuts) and openJump()
   await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
   await sleep(150);
   await key('j'); await sleep(350);
-  const jOpen = await run(`({ jumpOpen, trapped })`);
+  const jOpen = await run(`({ jumpOpen, trapped: popups.length > 0 })`);
   const jStack = await run(`({ n: popups.length, top: topPopup()?.id ?? null, is: isOpen('jump'), jo: jumpOpen })`);
   report('jump-stack:open', jStack.n === 1 && jStack.top === 'jump' && jStack.is === true && jStack.jo === true, `n=${jStack.n} top=${jStack.top} isOpen=${jStack.is} jumpOpen=${jStack.jo}`);
   await openLayer('jump-J', '.jump', ` jumpOpen=${jOpen.jumpOpen}`);
@@ -142,7 +156,7 @@ try {
 
   // a long Back opens it: the test holds Back 700 ms, past the escTimer hold in the keydown handler (a short Back is keyup backUp())
   await key('Backspace', 700); await sleep(350);
-  const bOpen = await run(`({ jumpOpen, trapped })`);
+  const bOpen = await run(`({ jumpOpen, trapped: popups.length > 0 })`);
   await openLayer('jump-Back', '.jump', ` jumpOpen=${bOpen.jumpOpen}`);
   await key('Escape'); await sleep(250);
   await closed('jump-Back');
@@ -152,7 +166,7 @@ try {
     await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
     await sleep(150);
     await key('Enter', 700); await sleep(300);
-    return run(`({ optsOpen, trapped, label: cur?.dataset.opt ?? null })`);
+    return run(`({ optsOpen, trapped: popups.length > 0, label: cur?.dataset.opt ?? null })`);
   };
 
   let o = await openOptsOnTile();
@@ -165,7 +179,7 @@ try {
   await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
   await sleep(150);
   await key('o'); await sleep(300);
-  o = await run(`({ optsOpen, trapped })`);
+  o = await run(`({ optsOpen, trapped: popups.length > 0 })`);
   await openLayer('opts-o-key', '.opts', ` optsOpen=${o.optsOpen}`);
   await stackIs('opts-o-key:stack-open', 'opts');
   await key('Backspace'); await sleep(250);
@@ -178,7 +192,7 @@ try {
     if (i >= 0) { cur = null; TV.focus(items[i]); } return i; })()`);
   await sleep(150);
   await key('Enter'); await sleep(350);
-  const iOpen = await run(`({ infoOpen, trapped })`);
+  const iOpen = await run(`({ infoOpen, trapped: popups.length > 0 })`);
   await openLayer('info-after-opts', '#info', ` infoOpen=${iOpen.infoOpen}`);
   await stackIs('info-after-opts:stack-open', 'info');
   await key('Backspace'); await sleep(300);
@@ -206,7 +220,7 @@ try {
   await sleep(150);
   if (moveStep >= 0) {
     await key('Enter'); await sleep(350);
-    const mv = await run(`({ moving: !!moving, trapped })`);
+    const mv = await run(`({ moving: !!moving, trapped: popups.length > 0 })`);
     report('move-mode:open', mv.moving === true, `moving=${mv.moving} trapped=${mv.trapped}`);
     await key('Backspace'); await sleep(300);
     await closed('move-mode');
@@ -218,7 +232,7 @@ try {
   await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
   await sleep(150);
   await key('/'); await sleep(350);
-  const sOpen = await run(`({ searchOpen, trapped })`);
+  const sOpen = await run(`({ searchOpen, trapped: popups.length > 0 })`);
   const sStack = await run(`({ n: popups.length, top: topPopup()?.id ?? null, so: searchOpen })`);
   report('search-stack:open', sStack.n === 1 && sStack.top === 'search' && sStack.so === true, `n=${sStack.n} top=${sStack.top} searchOpen=${sStack.so}`);
   await openLayer('search-slash', '#search', ` searchOpen=${sOpen.searchOpen}`);
@@ -229,7 +243,7 @@ try {
 
   // ---- call via `a` (the key handler's shortcuts -> incoming()) ---------------------------------------------------
   await key('a'); await sleep(350);
-  const cOpen = await run(`({ callOpen: !$('call').hidden || $('call').classList.contains('on'), trapped })`);
+  const cOpen = await run(`({ callOpen: !$('call').hidden || $('call').classList.contains('on'), trapped: popups.length > 0 })`);
   await openLayer('call', '.call', ` on=${cOpen.callOpen}`);
   await stackIs('call-stack:open', 'call');
   await key('Backspace'); await sleep(300);
@@ -250,7 +264,7 @@ try {
     await closed(name);
   }
 
-  // ---- a call is refused while any pop-up is open (incoming 1308 checks trapped); incoming() is what the TV calls ----
+  // ---- a call is refused while any pop-up is open (incoming checks the stack); incoming() is what the TV calls ----
   const REFUSE = [
     ['jump', `openJump()`, `closeJump()`],
     ['search', `openSearch()`, `closeSearch()`],
@@ -271,7 +285,7 @@ try {
     await sleep(400);
     const was = await stack();
     await run(`incoming()`); await sleep(250);
-    const rf = await run(`({ stack: popups.map(l => l.id).join(',') || '-', co: callOpen, on: $('call').classList.contains('on'), trapped })`);
+    const rf = await run(`({ stack: popups.map(l => l.id).join(',') || '-', co: callOpen, on: $('call').classList.contains('on'), trapped: popups.length > 0 })`);
     report(`call-refused-${name}`, rf.stack === was && was !== '-' && rf.co === false && rf.on === false && rf.trapped === true, `stack ${was}->${rf.stack} callOpen=${rf.co} on=${rf.on} trapped=${rf.trapped}`);
     await run(shut); await sleep(400);
     await closed(`call-refused-${name}`);
@@ -318,7 +332,7 @@ try {
   // ---- setup via run('openSetup()'), closed with Back (the key handler's Setup branch -> closeSetup(false)) ---------
   await run(`openSetup()`);
   await sleep(400);
-  const suOpen = await run(`({ setupOpen, trapped })`);
+  const suOpen = await run(`({ setupOpen, trapped: popups.length > 0 })`);
   await openLayer('setup-open', '#setup', ` setupOpen=${suOpen.setupOpen}`);
   await stackIs('setup-open:stack', 'setup');
   await key('Backspace'); await sleep(400);
@@ -362,8 +376,10 @@ try {
   await key('ArrowRight'); await sleep(250);
   await key('ArrowLeft'); await sleep(250);
   const nameReRendered = await run(`!window.__t.isConnected`);
+  const nh = await run(`({ inp: document.querySelectorAll('#inp [data-f]').length, stray: [...document.querySelectorAll('.stage [data-f]')].filter(el => !el.closest('.opts')).length })`);
+  report('opts-rename:held', nh.inp === 0 && nh.stray === 0, `inpFocusable=${nh.inp} outsideOpts=${nh.stray}`);
   await key('Backspace'); await sleep(300);
-  const nameAfter = await run(`({ stack: popups.map(l => l.id).join(',') || '-', inInp: !!cur?.closest('#inp'), port: cur?.dataset.port ?? null, trapped, name: cur?.dataset.port ?? cur?.dataset.name ?? null })`);
+  const nameAfter = await run(`({ stack: popups.map(l => l.id).join(',') || '-', inInp: !!cur?.closest('#inp'), port: cur?.dataset.port ?? null, trapped: popups.length > 0, name: cur?.dataset.port ?? cur?.dataset.name ?? null })`);
   report('opts-name-Back:focus', nameBack.found === true && nameReRendered === true && nameAfter.stack === '-' && nameAfter.inInp === true && nameAfter.port === nameBack.port && nameAfter.trapped === false, `found=${nameBack.found} rerendered=${nameReRendered} stack=${nameAfter.stack} inInp=${nameAfter.inInp} port=${nameAfter.port}/${nameBack.port} trapped=${nameAfter.trapped}`);
   await run(`TV.focus(document.querySelector('[data-tab="0"]'))`);
   await sleep(300);
@@ -379,11 +395,14 @@ try {
 
   // ---- kbd over Options (rename): Escape leaves Options on top with focus inside .opts --------------------
   await openOptsOnTile();
+  await run(`window.__kb = cur`);
   await run(`openKbd('test', '')`);
   await sleep(350);
+  await kbdOnly('kbd-over-opts:only-kbd');
   await stackIs('kbd-over-opts:stack-open', 'opts,kbd');
   await key('Escape'); await sleep(300);
   const kOpts = await run(`({ stack: popups.map(l => l.id).join(',') || '-', ko: kbdOpen, oo: optsOpen, inOpts: !!cur?.closest('.opts') })`);
+  await kbdBackIs('kbd-over-opts:back');
   report('kbd-over-opts:stack-closed', kOpts.stack === 'opts' && kOpts.ko === false && kOpts.oo === true && kOpts.inOpts === true, `stack=${kOpts.stack} kbdOpen=${kOpts.ko} optsOpen=${kOpts.oo} curInOpts=${kOpts.inOpts}`);
   await key('Backspace'); await sleep(300);
   await closed('kbd-over-opts');
@@ -405,10 +424,13 @@ try {
   report('handoff-setup-step3', hoStep.step === 3 && hoStep.rows > 0 && hoStep.host === 'exSetup', `step=${hoStep.step} rows=${hoStep.rows} exHost=${hoStep.host}`);
   await run(`(() => { const row = document.querySelector('#exSetup [data-ex="city"]'); if (row) { cur = null; TV.focus(row); } return !!row; })()`);
   await sleep(150);
+  await run(`window.__kb = cur`);
   await run(`exOk('city')`);
   await sleep(350);
   await stackIs('kbd-over-setup:stack-open', 'setup,kbd');
+  await kbdOnly('kbd-over-setup:only-kbd');
   await key('Escape'); await sleep(300);
+  await kbdBackIs('kbd-over-setup:back');
   await run(`redrawEx('unit')`);
   await sleep(250);
   const kSetup = await run(`({ stack: popups.map(l => l.id).join(',') || '-', so: setupOpen, inSetup: !!cur?.closest('#setup'), host: exHost?.id ?? null, rows: exHost ? exHost.querySelectorAll('[data-ex]').length : 0 })`);
@@ -425,13 +447,17 @@ try {
   await sleep(200);
   await run(`(() => { const items = [...jList.querySelectorAll('.jl')]; const i = items.findIndex(e => e.dataset.jl === 'row1');
     cur = null; TV.focus(items[i]); })()`);
+  // drawJump('row1') already focused row1 in tv.js, so the page's cur is still null: step off it and back to get a real opener
+  await run(`(() => { const r = jList.querySelector('[data-jl="row1"]'); TV.focus(jList.querySelector('.jl:not([data-jl="row1"])')); TV.focus(r); })()`);
+  await run(`window.__kb = cur`);
   await key('Enter'); await sleep(400);
-  const kOpen = await run(`({ kbdOpen, jumpOpen, trapped })`);
+  const kOpen = await run(`({ kbdOpen, jumpOpen, trapped: popups.length > 0 })`);
   const kStack = await run(`popups.map(l => l.id).join(',') || '-'`);
   report('kbd-over-jump:stack-open', kStack === 'jump,kbd', `stack=${kStack}`);
   await openLayer('kbd-over-jump', '#kbd', ` kbdOpen=${kOpen.kbdOpen} jumpOpen=${kOpen.jumpOpen}`);
   await key('Escape'); await sleep(300);
-  const stillJump = await run(`({ jumpOpen, trapped, visible: !document.querySelector('.jump')?.classList.contains('on'), stack: popups.map(l => l.id).join(',') })`);
+  const stillJump = await run(`({ jumpOpen, trapped: popups.length > 0, visible: !document.querySelector('.jump')?.classList.contains('on'), stack: popups.map(l => l.id).join(',') })`);
+  await kbdBackIs('kbd-over-jump:back');
   const jumpBackOk = stillJump.jumpOpen === true && stillJump.visible === false;
   report('kbd-over-jump:stack', stillJump.stack === 'jump', `stack=${stillJump.stack || '-'}`);
   await key('Escape'); await sleep(300);
@@ -461,15 +487,17 @@ try {
   // ---- kbd over extras (synthetic openKbd over extras, extras cannot open over jump) ------------------
   await run(`openExtras()`);
   await sleep(400);
-  const exOpen = await run(`({ extrasOpen, trapped })`);
+  const exOpen = await run(`({ extrasOpen, trapped: popups.length > 0 })`);
+  await run(`window.__kb = cur`);
   await run(`openKbd('test', '')`);
   await sleep(350);
-  const kOverEx = await run(`({ kbdOpen, extrasOpen, trapped })`);
+  const kOverEx = await run(`({ kbdOpen, extrasOpen, trapped: popups.length > 0 })`);
   const kExStack = await run(`popups.map(l => l.id).join(',') || '-'`);
   report('kbd-over-extras:stack-open', kExStack === 'extras,kbd', `stack=${kExStack}`);
   await openLayer('kbd-over-extras', '#kbd', ` kbdOpen=${kOverEx.kbdOpen} extrasOpen=${kOverEx.extrasOpen}`);
   await key('Escape'); await sleep(300);
   const kExStackClosed = await run(`({ stack: popups.map(l => l.id).join(',') || '-', ko: kbdOpen, eo: extrasOpen })`);
+  await kbdBackIs('kbd-over-extras:back');
   report('kbd-over-extras:stack-closed', kExStackClosed.stack === 'extras' && kExStackClosed.ko === false && kExStackClosed.eo === true, `stack=${kExStackClosed.stack} kbdOpen=${kExStackClosed.ko} extrasOpen=${kExStackClosed.eo}`);
   await run(`if (extrasOpen) closeExtras()`);
   await closed('kbd-over-extras');
@@ -483,25 +511,25 @@ try {
   await sleep(150);
   if (exRow >= 0) {
     await key('Enter'); await sleep(600);
-    const exJ = await run(`({ extrasOpen, jumpOpen, trapped })`);
+    const exJ = await run(`({ extrasOpen, jumpOpen, trapped: popups.length > 0 })`);
     await openLayer('extras-Jump', '#extras', ` extrasOpen=${exJ.extrasOpen} jumpOpen=${exJ.jumpOpen}`);
     await key('Backspace'); await sleep(350);
     await closed('extras-Jump');
   } else {
-    report('extras-Jump', false, `no-ext-row ${JSON.stringify(await run(`({ jumpOpen, trapped, kbdOpen, extrasOpen, rows: [...jList.querySelectorAll('.jl')].map(e => e.dataset.jl).join(',') })`))}`);
+    report('extras-Jump', false, `no-ext-row ${JSON.stringify(await run(`({ jumpOpen, trapped: popups.length > 0, kbdOpen, extrasOpen, rows: [...jList.querySelectorAll('.jl')].map(e => e.dataset.jl).join(',') })`))}`);
   }
 
   // ---- the away screen closes Extras: after sleep()+wake() it is gone and the deck has its focus back ----
   await run(`openExtras()`);
   await sleep(400);
-  const exBefore = await run(`({ extrasOpen, trapped, f: document.querySelectorAll('.stage [data-f]').length })`);
+  const exBefore = await run(`({ extrasOpen, trapped: popups.length > 0, f: document.querySelectorAll('.stage [data-f]').length })`);
   await run(`sleep()`);
   await sleep(250);
   await run(`wake()`);
   await sleep(300);
   const exAfter = await run(`(() => { const box = document.querySelector('#extras');
     const stray = [...document.querySelectorAll('.stage [data-f]')].filter(el => !box.contains(el)).length;
-    return { extrasOpen, trapped, sleeping, f: document.querySelectorAll('.stage [data-f]').length, stray, tabs: document.querySelectorAll('.hd-tab[data-f]').length }; })()`);
+    return { extrasOpen, trapped: popups.length > 0, sleeping, f: document.querySelectorAll('.stage [data-f]').length, stray, tabs: document.querySelectorAll('.hd-tab[data-f]').length }; })()`);
   const surviveOk = exBefore.extrasOpen === true && exAfter.extrasOpen === false && exAfter.trapped === false &&
     exAfter.sleeping === false && exAfter.tabs === 3;
   report('sleep-everything', surviveOk, `extrasOpen ${exBefore.extrasOpen}->${exAfter.extrasOpen} trapped=${exAfter.trapped} f=${exAfter.f} stray=${exAfter.stray} tabs=${exAfter.tabs} sleeping=${exAfter.sleeping}`);

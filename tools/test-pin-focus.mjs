@@ -60,14 +60,14 @@ try {
   await sleep(150);
   const pinned = await run(`favs.includes(+cur.dataset.app)`);
   await key('Enter', 700); await sleep(250);
-  const opts = await run(`({ trapped, optsOpen, label: cur?.dataset.opt })`);
+  const opts = await run(`({ trapped: popups.length > 0, optsOpen, label: cur?.dataset.opt })`);
   // step to the pin row
   const steps = await run(`(() => { const items = [...oList.querySelectorAll('[data-opt]')]; const i = items.findIndex(e => e.dataset.opt === 'pin'); return i - items.findIndex(e => e === cur); })()`);
   for (let i = 0; i < Math.abs(steps); i++) { await key(steps > 0 ? 'ArrowDown' : 'ArrowUp'); await sleep(120); }
   await key('Enter'); await sleep(400);
-  const after = await run(`({ trapped, optsOpen, tabs: document.querySelectorAll('.hd-tab[data-f]').length,
+  const after = await run(`({ trapped: popups.length > 0, optsOpen, tabs: document.querySelectorAll('.hd-tab[data-f]').length,
     help: $('helpBtn').hasAttribute('data-f'), jump: $('jumpBtn').hasAttribute('data-f'), play: $('rPlay').hasAttribute('data-f'),
-    saved: saved.length, curApp: cur?.dataset.app ?? null })`);
+    saved: (popups[0]?.saved ?? []).length, curApp: cur?.dataset.app ?? null })`);
   // Up to the Home tab, then Right: the Apps tab must take focus
   await key('ArrowUp'); await sleep(150);
   await run(`TV.focus(document.querySelector('[data-tab="0"]'))`);

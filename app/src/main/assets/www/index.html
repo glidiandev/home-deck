@@ -1016,13 +1016,13 @@
   const lastIn = [null, null, null];
   function arm() {   // only the active section takes part; Up from the top line of a section goes to its tab
     sections.forEach((s, i) => {
-      s.querySelectorAll('[data-fi]').forEach(el => { el.toggleAttribute('data-f', i === sec && !trapped); delete el.dataset.up; });
+      s.querySelectorAll('[data-fi]').forEach(el => { el.toggleAttribute('data-f', i === sec && !popups.length); delete el.dataset.up; });
       if (i !== sec) return;
       const first = [...s.querySelector('.row').querySelectorAll('[data-fi]')].filter(el => el.offsetParent);
       const top = Math.min(...first.map(el => el.offsetTop));
       first.filter(el => el.offsetTop === top).forEach(el => { el.dataset.up = `[data-tab="${i}"]`; });
     });
-    $('live').toggleAttribute('data-f', sec === 0 && !$('live').hidden && !trapped);
+    $('live').toggleAttribute('data-f', sec === 0 && !$('live').hidden && !popups.length);
   }
   function place() {
     sections.forEach((s, i) => { s.style.transform = `translateX(${(i - sec) * 1960}px)`; s.classList.toggle('is-off', i !== sec); });
@@ -1083,7 +1083,7 @@
     const el = (q && stage.querySelector(q)) || (prev?.isConnected && prev.hasAttribute('data-f') ? prev : null);
     if (el) { cur = null; TV.focus(el); }
   }
-  let trapped = false;
+  const popups = [];   // the pop-up stack (Overlays, below); declared here because arm() reads it on the first paint
   arm(); place();
 
   stage.addEventListener('tv:focus', e => {
@@ -1147,18 +1147,6 @@
   /* =====================================================================
      Overlays share one rule: while one is open, only its own controls take the remote
      ===================================================================== */
-  let saved = [];
-  function trap(box) {
-    trapped = true;
-    saved = [...stage.querySelectorAll('[data-f]')].filter(el => !box.contains(el));
-    saved.forEach(el => el.removeAttribute('data-f'));
-  }
-  function untrap(back) {
-    trapped = false;
-    saved.forEach(el => el.isConnected && el.setAttribute('data-f', '')); saved = [];
-    arm(); renderLive(); arm();
-    cur = null; TV.focus(back?.isConnected && back.hasAttribute('data-f') ? back : stage.querySelector('.section:not(.is-off) [data-f]'));
-  }
 
   /* ---- Jump To ---- */
   // the first accent, Theme, keeps each theme's own highlight; any other one re-keys the highlight in every theme
@@ -1210,14 +1198,13 @@
     J.music = { name: 'Music bar', vals: [NATIVE.nowPlaying().access ? 'On' : 'Off // OK to turn on'], i: 0, open: 'listener' };
     J.tv = { name: 'All TV settings', vals: ['Open'], i: 0, open: 'all' };
   }
-  const popups = [];
   const topPopup = () => popups[popups.length - 1] || null;
   const isOpen = id => popups.some(l => l.id === id);
   const LAYERS = { jump: { el: jump, onOpen: () => { jump.classList.add('on'); drawJump(); TV.focus(jList.querySelector('.jl')); }, onClose: () => { jump.classList.remove('on'); jList.innerHTML = ''; } } };
-  function openLayer(id) {
-    const entry = { id, back: cur };
+  function openLayer(id) {   // each pop-up keeps the controls it took the remote from, and gives them back on close
+    const entry = { id, back: cur, saved: [...stage.querySelectorAll('[data-f]')].filter(el => !LAYERS[id].el.contains(el)) };
+    entry.saved.forEach(el => el.removeAttribute('data-f'));
     popups.push(entry);
-    if (!LAYERS[id].ownSave) trap(LAYERS[id].el);
     LAYERS[id].onOpen();
   }
   function closeLayer(id) {
@@ -1225,7 +1212,12 @@
     if (i < 0) return;
     const entry = popups.splice(i, 1)[0];
     LAYERS[id].onClose();
-    if (!LAYERS[id].ownSave) untrap(LAYERS[id].back ? LAYERS[id].back() : entry.back);
+    entry.saved.forEach(el => el.isConnected && el.setAttribute('data-f', ''));
+    const back = LAYERS[id].back ? LAYERS[id].back() : entry.back;
+    cur = null;
+    if (popups.length) { if (back?.isConnected) TV.focus(back); return; }   // the keyboard over another pop-up: back to the control that opened it
+    arm(); renderLive(); arm();
+    TV.focus(back?.isConnected && back.hasAttribute('data-f') ? back : stage.querySelector('.section:not(.is-off) [data-f]'));
   }
   function closeAll() { while (popups.length) closeLayer(topPopup().id); }
   Object.defineProperty(globalThis, 'jumpOpen', { get: () => isOpen('jump'), configurable: true });
@@ -1248,7 +1240,7 @@
   applyRows();
   setTheme(store.get('theme', 0), true);
   function openJump() {
-    if (jumpOpen || trapped) return;
+    if (jumpOpen || popups.length) return;
     closeOpts(false);
     openLayer('jump');
     HD.glitch(jump);
@@ -1308,7 +1300,7 @@
   LAYERS.call = { el: call, onOpen: () => { call.classList.add('on'); callGo.setAttribute('data-f', ''); callNo.setAttribute('data-f', ''); TV.focus(callGo); },
     onClose: () => { call.classList.remove('on'); callGo.removeAttribute('data-f'); callNo.removeAttribute('data-f'); callGo.classList.remove('is-focus'); callNo.classList.remove('is-focus'); callPort.signal = true; callPort.t = Date.now(); } };
   function incoming(p = PORTS[2]) {
-    if (!p || callOpen || trapped || p.arc) return;
+    if (!p || callOpen || popups.length || p.arc) return;
     closeOpts(false);
     callPort = p;
     $('callPort').firstChild.textContent = `Incoming // HDMI ${p.n}`;
@@ -1353,7 +1345,7 @@
     if (again) { cur = null; TV.focus(again); }
   }
   function openOpts() {
-    if (!cur || optsOpen || trapped) return;
+    if (!cur || optsOpen || popups.length) return;
     const d = cur.dataset;
     if (d.app == null && !d.port) return;
     optsFor = d.app != null ? { app: +d.app } : { port: d.port }; beforeOpts = cur;
@@ -1395,7 +1387,7 @@
       if (id === 'rename' && ok && isCustom(names[p.n - 1])) return openKbd(`HDMI ${p.n} // name`, customNames[p.n - 1], t => {
         customNames[p.n - 1] = t; store.set('names-custom', customNames); renderInputs(); renderLive(); arm();
         $('oTitle').textContent = 'Options // ' + portName(p); drawOpts('rename'); });
-      if (id === 'rename') { stepName(p, dir); saved = saved.filter(x => x.isConnected); saved.push(...stage.querySelectorAll('#inp [data-fi]')); stage.querySelectorAll('#inp [data-fi]').forEach(x => x.removeAttribute('data-f')); beforeOpts = stage.querySelector(`#inp [data-port="${p.id}"]`); $('oTitle').textContent = 'Options // ' + portName(p); return drawOpts('rename'); }
+      if (id === 'rename') { stepName(p, dir); const o = topPopup(); o.saved = o.saved.filter(x => x.isConnected); o.saved.push(...stage.querySelectorAll('#inp [data-fi]')); stage.querySelectorAll('#inp [data-fi]').forEach(x => x.removeAttribute('data-f')); beforeOpts = stage.querySelector(`#inp [data-port="${p.id}"]`); $('oTitle').textContent = 'Options // ' + portName(p); return drawOpts('rename'); }
       closeOpts();
       if (id === 'switch') return switchPort(p);
       if (id === 'info') return openInfo({ port: p.id });
@@ -1411,9 +1403,8 @@
     if (id === 'del') { if (NATIVE) NATIVE.uninstall(APPS[app].pkg); else toast('warn', 'Uninstall', `${name} stays`, 'This is a preview, so nothing is removed.'); }
     if (id === 'pin' || id === 'move') {
       saveFavs(); renderFavs();
-      popups.splice(popups.map(l => l.id).lastIndexOf('opts'), 1); opts.classList.remove('on'); oList.innerHTML = '';
-      trapped = false;
-      saved.forEach(el => el.isConnected && el.setAttribute('data-f', '')); saved = [];
+      const o = popups.splice(popups.map(l => l.id).lastIndexOf('opts'), 1)[0]; LAYERS.opts.onClose();
+      o.saved.forEach(el => el.isConnected && el.setAttribute('data-f', ''));
       arm();
       cur = null; TV.focus(stage.querySelector(`.section:not(.is-off) [data-app="${app}"]`) || $('fav').querySelector('[data-f]'));
       return;
@@ -1525,7 +1516,7 @@
     if (keepFocus && !keepFocus.isConnected) { cur = null; TV.focus(search.querySelector('.skey')); }
   }
   function openSearch() {
-    if (searchOpen || trapped) return;
+    if (searchOpen || popups.length) return;
     openLayer('search');
   }
   function closeSearch() { if (!searchOpen) return; closeLayer('search'); }
@@ -1562,7 +1553,7 @@
   }
   function openSetup() {
     if (setupOpen) return;
-    if (trapped) return;
+    if (popups.length) return;
     step = 0; setup.hidden = false; openLayer('setup'); drawSetup();
     TV.focus(setup.querySelector('#stBody [data-f]'));
   }
@@ -1587,9 +1578,9 @@
 
   /* ---- on-screen keyboard: custom row and input names; arrows plus OK, or real typing; Back cancels ---- */
   const kbd = $('kbd');
-  let kbdText = '', kbdCb = null, kbdBack = null, kbdSaved = [];
+  let kbdText = '', kbdCb = null;
   Object.defineProperty(globalThis, 'kbdOpen', { get: () => isOpen('kbd'), configurable: true });
-  LAYERS.kbd = { el: kbd, ownSave: true, onOpen: () => {}, onClose: () => {} };
+  LAYERS.kbd = { el: kbd, onOpen: () => {}, onClose: () => { kbd.hidden = true; kbd.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f')); } };
   $('kKeys').innerHTML = KEYS.map(c => `<button class="hd-btn skey" type="button" data-kkey="${c}">${c}</button>`).join('') +
     '<button class="hd-btn skey skey--wide" type="button" data-kkey=" ">Space</button><button class="hd-btn skey skey--wide" type="button" data-kkey="DEL">Delete</button>';
   function drawKbd() {
@@ -1606,19 +1597,14 @@
     drawKbd();
   }
   function openKbd(title, value, cb) {
-    openLayer('kbd'); kbdText = value || ''; kbdCb = cb; kbdBack = cur;
+    openLayer('kbd'); kbdText = value || ''; kbdCb = cb;
     $('kTitle').textContent = title;
-    kbdSaved = [...stage.querySelectorAll('[data-f]')].filter(el => !kbd.contains(el));
-    kbdSaved.forEach(el => el.removeAttribute('data-f'));
     kbd.hidden = false; kbd.querySelectorAll('.skey, #kCancel, #kDone').forEach(el => el.setAttribute('data-f', ''));
     drawKbd(); cur = null; TV.focus(kbd.querySelector('.skey'));
   }
   function closeKbd(save) {
     if (!kbdOpen) return;
-    closeLayer('kbd'); kbd.hidden = true;
-    kbd.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f'));
-    kbdSaved.forEach(el => el.isConnected && el.setAttribute('data-f', '')); kbdSaved = [];
-    cur = null; if (kbdBack?.isConnected) TV.focus(kbdBack);
+    closeLayer('kbd');
     const t = kbdText.trim();
     if (save && t) kbdCb(t);
   }
@@ -1739,7 +1725,7 @@
   Object.defineProperty(globalThis, 'extrasOpen', { get: () => isOpen('extras'), configurable: true });
   LAYERS.extras = { el: extras, onOpen: () => { extras.hidden = false; drawEx(exList); TV.focus(exList.querySelector('[data-f]')); }, onClose: () => { extras.hidden = true; exList.innerHTML = ''; } };
   function openExtras() {
-    if (extrasOpen || trapped) return;
+    if (extrasOpen || popups.length) return;
     openLayer('extras');
   }
   function closeExtras() {
@@ -1821,10 +1807,10 @@
     $('rFreq').innerHTML = t + (tot ? `<span class="radio__total"> / ${tot}</span>` : '');
   }
   function drawRadio() {
-    const a = APPS[NOW.app], on = !NATIVE || !!NOW.track, rp = $('rPlay');
+    const a = APPS[NOW.app], on = !NATIVE || !!NOW.track, rp = $('rPlay'), held = popups[0];   // the bottom pop-up holds the deck's controls
     $('radio').style.visibility = on ? '' : 'hidden';
-    if (!on) { rp.removeAttribute('data-f'); saved = saved.filter(x => x !== rp); if (cur === rp) { cur = null; TV.focus(stage.querySelector('.section:not(.is-off) [data-f]')); } }
-    else if (trapped) { if (!saved.includes(rp)) saved.push(rp); } else rp.setAttribute('data-f', '');
+    if (!on) { rp.removeAttribute('data-f'); if (held) held.saved = held.saved.filter(x => x !== rp); if (cur === rp) { cur = null; TV.focus(stage.querySelector('.section:not(.is-off) [data-f]')); } }
+    else if (held) { if (!held.saved.includes(rp)) held.saved.push(rp); } else rp.setAttribute('data-f', '');
     $('radio').style.setProperty('--app', a ? a.glow : '#5ef6ff');
     $('radio').classList.toggle('no-station', !NOW.station);   // no album: the title line sits alone, the app named once
     $('rApp').textContent = a ? a.name : NOW.label; $('rStation').textContent = NOW.station; $('rTrack').textContent = NOW.track; $('rArtist').textContent = NOW.artist;

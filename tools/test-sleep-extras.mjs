@@ -61,7 +61,7 @@ try {
     await run(`sleep()`); await sleep(250);
     await key('ArrowDown'); await sleep(400);   // a remote key wakes it, as on the TV
     const after = await run(`(() => { const a = cur, x = $('extras');
-      return { sleeping, extrasOpen, kbdOpen, visible: !x.hidden, kbdVisible: !$('kbd').hidden, trapped,
+      return { sleeping, extrasOpen, kbdOpen, visible: !x.hidden, kbdVisible: !$('kbd').hidden, trapped: popups.length > 0,
         tabs: document.querySelectorAll('.hd-tab[data-f]').length,
         focusOutside: !!a?.hasAttribute?.('data-f') && !x.contains(a) && !$('kbd').contains(a) }; })()`);
     const ok = open.extrasOpen === true && open.visible === true && open.kbdOpen === withKbd && after.sleeping === false &&
