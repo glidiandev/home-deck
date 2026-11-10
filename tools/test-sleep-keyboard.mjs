@@ -62,15 +62,15 @@ try {
   const jumpRow = await run(`(() => { const items = [...jList.querySelectorAll('.jl')]; const i = items.findIndex(e => e.dataset.jl === 'row1');
     cur = null; TV.focus(items[i]); return items[i].dataset.jl; })()`);
   await key('Enter'); await sleep(400);
-  const open = await run(`({ kbdOpen, jumpOpen, trapped: popups.length > 0, visible: !$('kbd').hidden })`);
+  const open = await run(`({ kbdOpen: isOpen('kbd'), jumpOpen: isOpen('jump'), trapped: popups.length > 0, visible: !$('kbd').hidden })`);
   await run(`sleep()`);
   await sleep(200);
-  const slept = await run(`({ sleeping, kbdOpen, visible: !$('kbd').hidden, trapped: popups.length > 0, jumpOpen })`);
+  const slept = await run(`({ sleeping, kbdOpen: isOpen('kbd'), visible: !$('kbd').hidden, trapped: popups.length > 0, jumpOpen: isOpen('jump') })`);
   await key('Shift'); await sleep(300);
   await run(`wake()`);
   await sleep(200);
   const after = await run(`(() => { const a = cur, k = $('kbd');
-    return { kbdOpen, sleeping: sleeping, visible: !k.hidden, jumpOpen, trapped: popups.length > 0,
+    return { kbdOpen: isOpen('kbd'), sleeping: sleeping, visible: !k.hidden, jumpOpen: isOpen('jump'), trapped: popups.length > 0,
       focusF: !!a?.hasAttribute?.('data-f'), focusInKbd: !!(a && k.contains(a)),
       focusOutside: !!a?.hasAttribute?.('data-f') && !k.contains(a) }; })()`);
   const ok = open.kbdOpen === true && open.visible === true && after.kbdOpen === false && after.visible === false &&

@@ -1113,7 +1113,7 @@
   function setLite(on, why) {
     root.classList.toggle('lite', on);
     HD.setCRT(!on && !reduce); HD.setGlitch(!on && !reduce);
-    J.lite.i = on ? 1 : 0; if (jumpOpen) drawJump('lite');
+    J.lite.i = on ? 1 : 0; if (isOpen('jump')) drawJump('lite');
     if (why) toast('warn', 'Performance', 'This screen looks slow', 'Lite mode is on now. Turn it off in Jump To.', 6000);
     else toast('reward', 'Performance', on ? 'Lite mode on' : 'Lite mode off', on ? 'Glows, haze, scanlines and glitch are off.' : 'Full effects are back.');
   }
@@ -1220,12 +1220,11 @@
     TV.focus(back?.isConnected && back.hasAttribute('data-f') ? back : stage.querySelector('.section:not(.is-off) [data-f]'));
   }
   function closeAll() { while (popups.length) closeLayer(topPopup().id); }
-  Object.defineProperty(globalThis, 'jumpOpen', { get: () => isOpen('jump'), configurable: true });
   function drawJump(keep) {
     J.inp.vals = ['Home', ...switchable().map(p => `HDMI ${p.n}${portName(p) !== `HDMI ${p.n}` ? ' // ' + portName(p) : ''}`), 'Live TV'];
     J.inp.i = Math.min(J.inp.i, J.inp.vals.length - 1);
     jList.innerHTML = Object.entries(J).map(([id, o]) => !o ? '<div class="jump__sep"></div>' : `
-      <div class="jl hd-frame" data-jl="${id}"${jumpOpen ? ' data-f' : ''}>
+      <div class="jl hd-frame" data-jl="${id}"${isOpen('jump') ? ' data-f' : ''}>
         <span class="jl__ico">${o.icon ? `<img src="${ICON(o.icon, '-mini')}" alt="">` : id === 'acc' ? `<span class="jl__sw" style="--sw:${swatch(o.i)}"></span>` : '<i></i>'}</span>
         <span class="jl__name">${o.name}</span>
         <span class="jl__val">${o.vals.length > 1 ? '<span class="arr">&lsaquo;</span>' : ''}${esc(valText(o))}${o.vals.length > 1 ? '<span class="arr">&rsaquo;</span>' : ''}</span>
@@ -1240,13 +1239,13 @@
   applyRows();
   setTheme(store.get('theme', 0), true);
   function openJump() {
-    if (jumpOpen || popups.length) return;
+    if (popups.length) return;
     closeOpts(false);
     openLayer('jump');
     HD.glitch(jump);
   }
   function closeJump() {
-    if (!jumpOpen) return;
+    if (!isOpen('jump')) return;
     closeLayer('jump');
   }
   function stepJump(id, d) {
@@ -1296,11 +1295,10 @@
   /* ---- input detected: an incoming call in the corner ---- */
   const call = $('call'), callGo = $('callGo'), callNo = $('callNo');
   let callPort = null;
-  Object.defineProperty(globalThis, 'callOpen', { get: () => isOpen('call'), configurable: true });
   LAYERS.call = { el: call, onOpen: () => { call.classList.add('on'); callGo.setAttribute('data-f', ''); callNo.setAttribute('data-f', ''); TV.focus(callGo); },
     onClose: () => { call.classList.remove('on'); callGo.removeAttribute('data-f'); callNo.removeAttribute('data-f'); callGo.classList.remove('is-focus'); callNo.classList.remove('is-focus'); callPort.signal = true; callPort.t = Date.now(); } };
   function incoming(p = PORTS[2]) {
-    if (!p || callOpen || popups.length || p.arc) return;
+    if (!p || popups.length || p.arc) return;
     closeOpts(false);
     callPort = p;
     $('callPort').firstChild.textContent = `Incoming // HDMI ${p.n}`;
@@ -1308,7 +1306,7 @@
     openLayer('call');
   }
   function endCall(go) {
-    if (!callOpen) return;
+    if (!isOpen('call')) return;
     closeLayer('call');
     if (go) switchPort(callPort);
   }
@@ -1316,7 +1314,6 @@
   /* ---- options (hold OK): apps and inputs ---- */
   const opts = $('opts'), oList = $('oList');
   let optsFor = null, beforeOpts = null;
-  Object.defineProperty(globalThis, 'optsOpen', { get: () => isOpen('opts'), configurable: true });
   LAYERS.opts = { el: opts, back: () => beforeOpts, onOpen: () => {}, onClose: () => { opts.classList.remove('on'); oList.innerHTML = ''; } };
   const BUILT_IN = ['Play Store', 'Media Player'];
   function optItems() {
@@ -1345,7 +1342,7 @@
     if (again) { cur = null; TV.focus(again); }
   }
   function openOpts() {
-    if (!cur || optsOpen || popups.length) return;
+    if (!cur || popups.length) return;
     const d = cur.dataset;
     if (d.app == null && !d.port) return;
     optsFor = d.app != null ? { app: +d.app } : { port: d.port }; beforeOpts = cur;
@@ -1359,7 +1356,7 @@
     TV.focus(oList.querySelector('[data-f]')); $('oWhy').textContent = '';
   }
   function closeOpts(refocusIt = true) {
-    if (!optsOpen) return;
+    if (!isOpen('opts')) return;
     closeLayer('opts');
   }
   // only one port can be the audio out; marking it moves the sound output to the soundbar over ARC
@@ -1460,7 +1457,6 @@
 
   /* ---- Info as a scanner ---- */
   const info = $('info');
-  Object.defineProperty(globalThis, 'infoOpen', { get: () => isOpen('info'), configurable: true });
   LAYERS.info = { el: info, onOpen: () => {}, onClose: () => { info.hidden = true; $('iClose').removeAttribute('data-f'); } };
   function openInfo(o) {
     const r = HD.rng(o.app != null ? APPS[o.app].name : o.port), num = (a, b) => a + Math.floor(r() * (b - a));
@@ -1498,12 +1494,11 @@
     const sa = $('iArt'); sa.classList.remove('go'); void sa.offsetWidth; sa.classList.add('go');
     $('iClose').setAttribute('data-f', ''); TV.focus($('iClose')); HD.glitch($('iTitle'));
   }
-  function closeInfo() { if (!infoOpen) return; closeLayer('info'); }
+  function closeInfo() { if (!isOpen('info')) return; closeLayer('info'); }
 
   /* ---- Scan: search with a letter grid, typing or voice ---- */
   const search = $('search');
   let query = '';
-  Object.defineProperty(globalThis, 'searchOpen', { get: () => isOpen('search'), configurable: true });
   LAYERS.search = { el: search, onOpen: () => { query = ''; $('sHeard').textContent = ''; search.hidden = false; drawSearch(); TV.focus(search.querySelector('.skey')); }, onClose: () => { search.hidden = true; search.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f')); } };
   const KEYS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
   $('sKeys').innerHTML = KEYS.map(c => `<button class="hd-btn skey" type="button" data-key="${c}">${c}</button>`).join('') +
@@ -1516,21 +1511,20 @@
     if (keepFocus && !keepFocus.isConnected) { cur = null; TV.focus(search.querySelector('.skey')); }
   }
   function openSearch() {
-    if (searchOpen || popups.length) return;
+    if (popups.length) return;
     openLayer('search');
   }
-  function closeSearch() { if (!searchOpen) return; closeLayer('search'); }
+  function closeSearch() { if (!isOpen('search')) return; closeLayer('search'); }
   function typeKey(c) { query = c === 'DEL' ? query.slice(0, -1) : (query + c).slice(0, 24); drawSearch(cur); }
   function voice() {
     if (NATIVE) { $('sHeard').textContent = 'Voice search is coming later. Type the name instead.'; return; }
     $('sHeard').innerHTML = '<span class="hd-wave" aria-hidden="true"><i style="--h:40%"></i><i style="--h:90%"></i><i style="--h:60%"></i><i style="--h:80%"></i></span> Listening...';
-    setTimeout(() => { if (!searchOpen) return; query = 'spot'; $('sHeard').textContent = 'Heard: "Spotify"'; drawSearch(cur); }, reduce ? 300 : 1300);
+    setTimeout(() => { if (!isOpen('search')) return; query = 'spot'; $('sHeard').textContent = 'Heard: "Spotify"'; drawSearch(cur); }, reduce ? 300 : 1300);
   }
 
   /* ---- first-run setup: favorites, color, input names ---- */
   const setup = $('setup');
   let step = 0;
-  Object.defineProperty(globalThis, 'setupOpen', { get: () => isOpen('setup'), configurable: true });
   LAYERS.setup = { el: setup, back: () => $('fav').querySelector('[data-fi]'), onOpen: () => {}, onClose: () => {
     setup.hidden = true; setup.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f'));
     store.set('setup-done', true);
@@ -1552,7 +1546,6 @@
     setup.querySelectorAll('.setup__foot .hd-btn[hidden]').forEach(el => el.removeAttribute('data-f'));
   }
   function openSetup() {
-    if (setupOpen) return;
     if (popups.length) return;
     step = 0; setup.hidden = false; openLayer('setup'); drawSetup();
     TV.focus(setup.querySelector('#stBody [data-f]'));
@@ -1563,7 +1556,7 @@
     drawSetup(); cur = null; TV.focus(setup.querySelector('#stBody [data-f]'));
   }
   function closeSetup(done) {
-    if (!setupOpen) return;
+    if (!isOpen('setup')) return;
     closeLayer('setup');
     if (done) { toast('reward', 'Setup', 'All set', 'Run it again any time from Jump To.'); setTimeout(() => showHints(), 4000); }
     else showHints();
@@ -1579,7 +1572,6 @@
   /* ---- on-screen keyboard: custom row and input names; arrows plus OK, or real typing; Back cancels ---- */
   const kbd = $('kbd');
   let kbdText = '', kbdCb = null;
-  Object.defineProperty(globalThis, 'kbdOpen', { get: () => isOpen('kbd'), configurable: true });
   LAYERS.kbd = { el: kbd, onOpen: () => {}, onClose: () => { kbd.hidden = true; kbd.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f')); } };
   $('kKeys').innerHTML = KEYS.map(c => `<button class="hd-btn skey" type="button" data-kkey="${c}">${c}</button>`).join('') +
     '<button class="hd-btn skey skey--wide" type="button" data-kkey=" ">Space</button><button class="hd-btn skey skey--wide" type="button" data-kkey="DEL">Delete</button>';
@@ -1603,7 +1595,7 @@
     drawKbd(); cur = null; TV.focus(kbd.querySelector('.skey'));
   }
   function closeKbd(save) {
-    if (!kbdOpen) return;
+    if (!isOpen('kbd')) return;
     closeLayer('kbd');
     const t = kbdText.trim();
     if (save && t) kbdCb(t);
@@ -1707,7 +1699,7 @@
     const again = keep && host.querySelector(`[data-ex="${keep}"]`);
     if (again) { cur = null; TV.focus(again); }
   }
-  function redrawEx(keep) { if (exHost?.isConnected && (extrasOpen || setupOpen)) drawEx(exHost, keep || cur?.dataset.ex); }
+  function redrawEx(keep) { if (exHost?.isConnected && (isOpen('extras') || isOpen('setup'))) drawEx(exHost, keep || cur?.dataset.ex); }
   function exStep(id, d) {
     if (id === 'on') { WX.on = !WX.on; store.set('wx-on', WX.on); if (WX.on && !WX.city) setCity(CITIES[0]); else if (WX.on) wxFetch(); drawWx(); }
     if (id === 'unit') { WX.unit = WX.unit === 'F' ? 'C' : 'F'; store.set('wx-unit', WX.unit); drawWx(); }
@@ -1722,14 +1714,13 @@
     exStep(id, 1);
   }
   const extras = $('extras'), exList = $('exList');
-  Object.defineProperty(globalThis, 'extrasOpen', { get: () => isOpen('extras'), configurable: true });
   LAYERS.extras = { el: extras, onOpen: () => { extras.hidden = false; drawEx(exList); TV.focus(exList.querySelector('[data-f]')); }, onClose: () => { extras.hidden = true; exList.innerHTML = ''; } };
   function openExtras() {
-    if (extrasOpen || popups.length) return;
+    if (popups.length) return;
     openLayer('extras');
   }
   function closeExtras() {
-    if (!extrasOpen) return;
+    if (!isOpen('extras')) return;
     closeLayer('extras');
   }
   drawWx();
@@ -1904,7 +1895,7 @@
   const spot = () => { sbPos.style.transform = `translate(${80 + Math.random() * 1000}px, ${80 + Math.random() * 560}px)`; };
   function drift() { if (reduce) return spot(); sbPos.classList.add('fade'); setTimeout(() => { spot(); sbPos.classList.remove('fade'); }, 650); }
   function sleep() {
-    if (sleeping || setupOpen) return;
+    if (sleeping || isOpen('setup')) return;
     if (moving) endMove(false);
     closeAll();   // every pop-up on the stack, top first (the keyboard before the one under it), without saving
     endLink();
@@ -1963,7 +1954,8 @@
       else if (back) endMove(false);
       return;
     }
-    if (kbdOpen) {
+    const layer = topPopup()?.id;   // the pop-up on top gets the keys (the stack is [], [X] or [X, kbd])
+    if (layer === 'kbd') {
       if (k === 'Escape') { stop(); return closeKbd(false); }
       if (k === 'Backspace') { stop(); return kType('DEL'); }
       if (e.key.length === 1 && /^[a-zA-Z0-9 +&'.-]$/.test(e.key) && !e.ctrlKey && !e.metaKey) { stop(); return kType(e.key, true); }
@@ -1972,7 +1964,7 @@
       if (k === 'ArrowDown' && nothingBelow($('kKeys'), cur)) { stop(); return TV.focus($('kDone')); }
       return;
     }
-    if (setupOpen) {
+    if (layer === 'setup') {
       if (back) { stop(); return closeSetup(false); }
       if ((k === 'ArrowLeft' || k === 'ArrowRight') && cur?.dataset.ex) { stop(); return exStep(cur.dataset.ex, k === 'ArrowLeft' ? -1 : 1); }
       if ((k === 'ArrowLeft' || k === 'ArrowRight') && cur?.dataset.nl) { stop(); stepName(PORTS.find(p => p.id === cur.dataset.nl), k === 'ArrowLeft' ? -1 : 1); return drawSetupKeep(cur.dataset.nl); }
@@ -1982,20 +1974,20 @@
       if (k === 'ArrowDown' && cur?.closest('#stBody') && nothingBelow($('stBody'), cur)) { stop(); return TV.focus($('stNext')); }
       return;
     }
-    if (searchOpen) {
+    if (layer === 'search') {
       if (k === 'Escape') { stop(); return closeSearch(); }
       if (k === 'Backspace') { stop(); return typeKey('DEL'); }
       if (/^[a-z0-9 ]$/.test(k) && !e.ctrlKey && !e.metaKey) { stop(); return typeKey(k.toUpperCase()); }
       return;
     }
-    if (infoOpen) { if (back) { stop(); closeInfo(); } else if (k.startsWith('Arrow')) stop(); return; }
-    if (callOpen) {
+    if (layer === 'info') { if (back) { stop(); closeInfo(); } else if (k.startsWith('Arrow')) stop(); return; }
+    if (layer === 'call') {
       if (k === 'ArrowLeft' || k === 'ArrowRight') { stop(); TV.focus(cur === callGo ? callNo : callGo); }
       else if (back) { stop(); endCall(false); }
       else if (k.startsWith('Arrow')) stop();
       return;
     }
-    if (extrasOpen) {
+    if (layer === 'extras') {
       const items = [...exList.querySelectorAll('[data-f]')], i = items.indexOf(cur);
       if (k === 'ArrowUp' || k === 'ArrowDown') { stop(); cur = null; TV.focus(items[(i + (k === 'ArrowUp' ? -1 : 1) + items.length) % items.length]); }
       else if ((k === 'ArrowLeft' || k === 'ArrowRight') && items[i]) { stop(); exStep(items[i].dataset.ex, k === 'ArrowLeft' ? -1 : 1); }
@@ -2003,7 +1995,7 @@
       else if (k === 'Enter' && e.repeat) stop();
       return;
     }
-    if (jumpOpen) {
+    if (layer === 'jump') {
       const items = [...jList.querySelectorAll('.jl')], i = items.indexOf(cur);
       if (k === 'ArrowUp' || k === 'ArrowDown') { stop(); cur = null; TV.focus(items[(i + (k === 'ArrowUp' ? -1 : 1) + items.length) % items.length]); }
       else if (k === 'ArrowLeft' || k === 'ArrowRight') { stop(); if (i >= 0 && items[i].dataset.jl) stepJump(items[i].dataset.jl, k === 'ArrowLeft' ? -1 : 1); }
@@ -2011,7 +2003,7 @@
       else if (k === 'Enter' && e.repeat) stop();
       return;
     }
-    if (optsOpen) {
+    if (layer === 'opts') {
       const items = [...oList.querySelectorAll('[data-f]')], i = items.indexOf(cur);
       if (k === 'ArrowUp' || k === 'ArrowDown') { stop(); $('oWhy').textContent = ''; cur = null; TV.focus(items[(i + (k === 'ArrowUp' ? -1 : 1) + items.length) % items.length]); }
       else if ((k === 'ArrowLeft' || k === 'ArrowRight') && ['rename', 'arc'].includes(items[i]?.dataset.opt)) { stop(); runOpt(items[i], k === 'ArrowLeft' ? -1 : 1, false); }
@@ -2063,8 +2055,8 @@
   stage.addEventListener('click', e => {
     if (booting) { e.stopImmediatePropagation(); finishBoot(); }
     else if (inputLink) { e.stopImmediatePropagation(); endLink(); }
-    else if (optsOpen && !e.target.closest('.opts')) { e.stopImmediatePropagation(); closeOpts(); }
-    else if (jumpOpen && !e.target.closest('.jump')) { e.stopImmediatePropagation(); closeJump(); }
+    else if (isOpen('opts') && !e.target.closest('.opts')) { e.stopImmediatePropagation(); closeOpts(); }
+    else if (isOpen('jump') && !e.target.closest('.jump')) { e.stopImmediatePropagation(); closeJump(); }
   }, true);
   // a port tile's OK goes through tv.js as a click; tv.js only launches data-app tiles, so ports are handled in tv:select above
 

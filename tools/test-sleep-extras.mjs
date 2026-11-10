@@ -57,11 +57,11 @@ try {
     await sleep(2500);
     await run(`openExtras()`); await sleep(400);
     if (withKbd) { await run(`openKbd('test', '')`); await sleep(300); }
-    const open = await run(`({ extrasOpen, kbdOpen, visible: !$('extras').hidden })`);
+    const open = await run(`({ extrasOpen: isOpen('extras'), kbdOpen: isOpen('kbd'), visible: !$('extras').hidden })`);
     await run(`sleep()`); await sleep(250);
     await key('ArrowDown'); await sleep(400);   // a remote key wakes it, as on the TV
     const after = await run(`(() => { const a = cur, x = $('extras');
-      return { sleeping, extrasOpen, kbdOpen, visible: !x.hidden, kbdVisible: !$('kbd').hidden, trapped: popups.length > 0,
+      return { sleeping, extrasOpen: isOpen('extras'), kbdOpen: isOpen('kbd'), visible: !x.hidden, kbdVisible: !$('kbd').hidden, trapped: popups.length > 0,
         tabs: document.querySelectorAll('.hd-tab[data-f]').length,
         focusOutside: !!a?.hasAttribute?.('data-f') && !x.contains(a) && !$('kbd').contains(a) }; })()`);
     const ok = open.extrasOpen === true && open.visible === true && open.kbdOpen === withKbd && after.sleeping === false &&
