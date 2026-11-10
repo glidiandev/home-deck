@@ -40,6 +40,7 @@ const close = async () => {
 // known quirks on main: printed as XFAIL and not counted as failures; XPASS means the quirk went away, so look
 const XFAIL = {
   'extras-Jump:open': 'one-row Extras: Up/Down sets cur = null and TV.focus no-ops on the same row (index.html:1994)',
+  'call-over-move:Back': 'a call during move mode: move mode takes the keys first, so Back ends the move and the call stays open',
 };
 let pass = 0, fail = 0, xfail = 0, xpass = 0;
 // one line per case; detail is a compact key/value string
@@ -230,8 +231,89 @@ try {
   await key('a'); await sleep(350);
   const cOpen = await run(`({ callOpen: !$('call').hidden || $('call').classList.contains('on'), trapped })`);
   await openLayer('call', '.call', ` on=${cOpen.callOpen}`);
+  await stackIs('call-stack:open', 'call');
   await key('Backspace'); await sleep(300);
+  await stackIs('call-stack:closed', '-');
   await closed('call');
+
+  // ---- call Accept (OK on callGo in the tv:select handler) and Decline (Right then OK on callNo): focus goes back to the tile ----
+  for (const [name, keys] of [['call-Accept', ['Enter']], ['call-Decline', ['ArrowRight', 'Enter']]]) {
+    await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
+    await sleep(150);
+    const tileApp = await run(`cur?.dataset.app ?? null`);
+    await key('a'); await sleep(350);
+    for (const k of keys) { await key(k); await sleep(200); }
+    await sleep(300);
+    const ce = await run(`({ stack: popups.map(l => l.id).join(',') || '-', co: callOpen, on: $('call').classList.contains('on'), app: cur?.dataset.app ?? null })`);
+    report(`${name}:focus`, ce.stack === '-' && ce.co === false && ce.on === false && ce.app === tileApp, `stack=${ce.stack} callOpen=${ce.co} on=${ce.on} cur=${ce.app} (was ${tileApp})`);
+    await run(`endLink()`); await sleep(200);   // Accept switches to the input: the link screen times out by itself after 1.8 s
+    await closed(name);
+  }
+
+  // ---- a call is refused while any pop-up is open (incoming 1308 checks trapped); incoming() is what the TV calls ----
+  const REFUSE = [
+    ['jump', `openJump()`, `closeJump()`],
+    ['search', `openSearch()`, `closeSearch()`],
+    ['kbd-over-jump', `(openJump(), openKbd('test', ''))`, `(closeKbd(false), closeJump())`],
+    ['opts', null, `closeOpts()`],
+    ['info', null, `closeInfo()`],
+    ['extras', `openExtras()`, `closeExtras()`],
+    ['setup', `openSetup()`, `closeSetup(false)`],
+  ];
+  for (const [name, open, shut] of REFUSE) {
+    if (name === 'opts' || name === 'info') {
+      await openOptsOnTile();
+      if (name === 'info') {
+        await run(`(() => { const r = [...oList.querySelectorAll('[data-opt]')].find(e => e.dataset.opt === 'info'); cur = null; TV.focus(r); })()`);
+        await sleep(150); await key('Enter');
+      }
+    } else await run(open);
+    await sleep(400);
+    const was = await stack();
+    await run(`incoming()`); await sleep(250);
+    const rf = await run(`({ stack: popups.map(l => l.id).join(',') || '-', co: callOpen, on: $('call').classList.contains('on'), trapped })`);
+    report(`call-refused-${name}`, rf.stack === was && was !== '-' && rf.co === false && rf.on === false && rf.trapped === true, `stack ${was}->${rf.stack} callOpen=${rf.co} on=${rf.on} trapped=${rf.trapped}`);
+    await run(shut); await sleep(400);
+    await closed(`call-refused-${name}`);
+  }
+
+  // ---- the away screen closes an open call (sleep() -> endCall(false)) --------------------------
+  await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
+  await sleep(150);
+  await key('a'); await sleep(350);
+  await run(`sleep()`); await sleep(250);
+  await key('ArrowDown'); await sleep(400);
+  const cs = await run(`({ stack: popups.map(l => l.id).join(',') || '-', co: callOpen, sleeping })`);
+  report('call-sleep:stack', cs.stack === '-' && cs.co === false && cs.sleeping === false, `stack=${cs.stack} callOpen=${cs.co} sleeping=${cs.sleeping}`);
+  await closed('call-sleep');
+
+  // ---- incoming() during the away screen still opens the call (only the native port-update caller skips sleeping);
+  //      the first key only wakes, then Back declines --------------------------------------------------------
+  await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
+  await sleep(150);
+  await run(`sleep()`); await sleep(250);
+  await run(`incoming()`); await sleep(250);
+  const ca1 = await run(`({ stack: popups.map(l => l.id).join(',') || '-', sleeping })`);
+  await key('ArrowRight'); await sleep(300);
+  const ca2 = await run(`({ stack: popups.map(l => l.id).join(',') || '-', sleeping, go: cur === callGo })`);
+  await key('Backspace'); await sleep(300);
+  const ca3 = await stack();
+  report('call-during-away', ca1.stack === 'call' && ca1.sleeping === true && ca2.stack === 'call' && ca2.sleeping === false && ca2.go === true && ca3 === '-',
+    `asleep stack=${ca1.stack} | first key: sleeping=${ca2.sleeping} stack=${ca2.stack} curIsCallGo=${ca2.go} | Back: stack=${ca3}`);
+  await closed('call-during-away');
+
+  // ---- call during move mode (move mode takes every key first, in the key handler's move branch): characterization, XFAIL ---------------
+  await openOptsOnTile();
+  await run(`(() => { const r = [...oList.querySelectorAll('[data-opt]')].find(e => e.dataset.opt === 'move'); cur = null; TV.focus(r); })()`);
+  await sleep(150); await key('Enter'); await sleep(350);
+  await run(`incoming()`); await sleep(250);
+  const cm1 = await run(`({ moving: !!moving, co: callOpen })`);
+  await key('Backspace'); await sleep(300);
+  const cm2 = await run(`({ moving: !!moving, co: callOpen, stack: popups.map(l => l.id).join(',') || '-' })`);
+  report('call-over-move:Back', cm1.moving === true && cm1.co === true && cm2.co === false, `moving=${cm1.moving} callOpen=${cm1.co} | after Back: moving=${cm2.moving} callOpen=${cm2.co} stack=${cm2.stack}`);
+  if (cm2.co) { await key('Backspace'); await sleep(300); }   // the second Back declines it
+  if (await run(`!!moving`)) { await key('Backspace'); await sleep(300); }
+  await closed('call-over-move');
 
   // ---- setup via run('openSetup()'), closed with Back (the key handler's Setup branch -> closeSetup(false)) ---------
   await run(`openSetup()`);

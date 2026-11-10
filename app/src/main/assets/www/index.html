@@ -1303,23 +1303,21 @@
 
   /* ---- input detected: an incoming call in the corner ---- */
   const call = $('call'), callGo = $('callGo'), callNo = $('callNo');
-  let callOpen = false, callPort = null, beforeCall = null;
+  let callPort = null;
+  Object.defineProperty(globalThis, 'callOpen', { get: () => isOpen('call'), configurable: true });
+  LAYERS.call = { el: call, onOpen: () => { call.classList.add('on'); callGo.setAttribute('data-f', ''); callNo.setAttribute('data-f', ''); TV.focus(callGo); },
+    onClose: () => { call.classList.remove('on'); callGo.removeAttribute('data-f'); callNo.removeAttribute('data-f'); callGo.classList.remove('is-focus'); callNo.classList.remove('is-focus'); callPort.signal = true; callPort.t = Date.now(); } };
   function incoming(p = PORTS[2]) {
     if (!p || callOpen || trapped || p.arc) return;
     closeOpts(false);
-    callOpen = true; callPort = p; beforeCall = cur;
+    callPort = p;
     $('callPort').firstChild.textContent = `Incoming // HDMI ${p.n}`;
     $('callName').textContent = portName(p); $('callImg').src = ICON(p.emblem, '-bg');
-    call.classList.add('on'); trap(call);
-    callGo.setAttribute('data-f', ''); callNo.setAttribute('data-f', '');
-    TV.focus(callGo);
+    openLayer('call');
   }
   function endCall(go) {
     if (!callOpen) return;
-    callOpen = false; call.classList.remove('on');
-    callGo.removeAttribute('data-f'); callNo.removeAttribute('data-f'); callGo.classList.remove('is-focus'); callNo.classList.remove('is-focus');
-    callPort.signal = true; callPort.t = Date.now();
-    untrap(beforeCall);
+    closeLayer('call');
     if (go) switchPort(callPort);
   }
 
