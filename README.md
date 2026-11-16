@@ -308,4 +308,5 @@ MIT. See [LICENSE](LICENSE).
 
 ---
 
-Made by [Glidian](https://glidian.dev).
+Made by [Glidian](https://glidian.dev). Also by Glidian: [Backlog](https://github.com/glidiandev/backlog), a Steam Deck screensaver made from your own games,
+and [KIDŌ](https://github.com/glidiandev/kido), a command-center home screen for Android TV.
