@@ -169,8 +169,21 @@ Home Deck is installed like any other app, so a few things stay off limits:
 
 ## Install
 
-Home Deck isn't on the Play Store; you install it yourself with adb. You'll need a computer with
-[adb](https://developer.android.com/tools/releases/platform-tools) on the same network as the TV.
+Home Deck isn't on the Play Store; you install it yourself, either from the TV with the Downloader app or from a
+computer with adb. Making it what the Home button opens usually takes adb either way.
+
+### With Downloader
+
+In the [Downloader](https://play.google.com/store/apps/details?id=com.esaba.downloader) app, enter the code
+**5490318**. It downloads the newest release from this page. Allow Downloader to install apps when the TV asks, and
+press **Done** at the end (**Open** is grayed out on some TVs).
+
+Enter the same code again to update; your favorites and settings stay.
+
+### With adb
+
+You'll need a computer with [adb](https://developer.android.com/tools/releases/platform-tools) on the same network as
+the TV.
 
 1. On the TV, turn on Developer options (Settings > Device Preferences > About, press OK on **Build** seven times),
    then turn on **USB debugging** or **Network debugging** in Developer options.
@@ -185,7 +198,9 @@ Home Deck isn't on the Play Store; you install it yourself with adb. You'll need
    ```
    Updating works the same way: `adb install -r homedeck.apk` keeps your favorites and settings.
 
-Home Deck now shows up in your apps. To make it what the Home button opens:
+### Make it your home screen
+
+Home Deck now shows up in your apps. To make it what the Home button opens, run this from the computer:
 
 ```bash
 adb shell cmd package set-home-activity dev.glidian.homedeck/.HomeActivity
