@@ -1016,13 +1016,13 @@
   const lastIn = [null, null, null];
   function arm() {   // only the active section takes part; Up from the top line of a section goes to its tab
     sections.forEach((s, i) => {
-      s.querySelectorAll('[data-fi]').forEach(el => { el.toggleAttribute('data-f', i === sec && !trapped); delete el.dataset.up; });
+      s.querySelectorAll('[data-fi]').forEach(el => { el.toggleAttribute('data-f', i === sec && !popups.length); delete el.dataset.up; });
       if (i !== sec) return;
       const first = [...s.querySelector('.row').querySelectorAll('[data-fi]')].filter(el => el.offsetParent);
       const top = Math.min(...first.map(el => el.offsetTop));
       first.filter(el => el.offsetTop === top).forEach(el => { el.dataset.up = `[data-tab="${i}"]`; });
     });
-    $('live').toggleAttribute('data-f', sec === 0 && !$('live').hidden && !trapped);
+    $('live').toggleAttribute('data-f', sec === 0 && !$('live').hidden && !popups.length);
   }
   function place() {
     sections.forEach((s, i) => { s.style.transform = `translateX(${(i - sec) * 1960}px)`; s.classList.toggle('is-off', i !== sec); });
@@ -1083,7 +1083,7 @@
     const el = (q && stage.querySelector(q)) || (prev?.isConnected && prev.hasAttribute('data-f') ? prev : null);
     if (el) { cur = null; TV.focus(el); }
   }
-  let trapped = false;
+  const popups = [];   // the pop-up stack (Overlays, below); declared here because arm() reads it on the first paint
   arm(); place();
 
   stage.addEventListener('tv:focus', e => {
@@ -1113,7 +1113,7 @@
   function setLite(on, why) {
     root.classList.toggle('lite', on);
     HD.setCRT(!on && !reduce); HD.setGlitch(!on && !reduce);
-    J.lite.i = on ? 1 : 0; if (jumpOpen) drawJump('lite');
+    J.lite.i = on ? 1 : 0; if (isOpen('jump')) drawJump('lite');
     if (why) toast('warn', 'Performance', 'This screen looks slow', 'Lite mode is on now. Turn it off in Jump To.', 6000);
     else toast('reward', 'Performance', on ? 'Lite mode on' : 'Lite mode off', on ? 'Glows, haze, scanlines and glitch are off.' : 'Full effects are back.');
   }
@@ -1147,18 +1147,6 @@
   /* =====================================================================
      Overlays share one rule: while one is open, only its own controls take the remote
      ===================================================================== */
-  let saved = [];
-  function trap(box) {
-    trapped = true;
-    saved = [...stage.querySelectorAll('[data-f]')].filter(el => !box.contains(el));
-    saved.forEach(el => el.removeAttribute('data-f'));
-  }
-  function untrap(back) {
-    trapped = false;
-    saved.forEach(el => el.isConnected && el.setAttribute('data-f', '')); saved = [];
-    arm(); renderLive(); arm();
-    cur = null; TV.focus(back?.isConnected && back.hasAttribute('data-f') ? back : stage.querySelector('.section:not(.is-off) [data-f]'));
-  }
 
   /* ---- Jump To ---- */
   // the first accent, Theme, keeps each theme's own highlight; any other one re-keys the highlight in every theme
@@ -1210,12 +1198,33 @@
     J.music = { name: 'Music bar', vals: [NATIVE.nowPlaying().access ? 'On' : 'Off // OK to turn on'], i: 0, open: 'listener' };
     J.tv = { name: 'All TV settings', vals: ['Open'], i: 0, open: 'all' };
   }
-  let jumpOpen = false, beforeJump = null;
+  const topPopup = () => popups[popups.length - 1] || null;
+  const isOpen = id => popups.some(l => l.id === id);
+  const LAYERS = { jump: { el: jump, onOpen: () => { jump.classList.add('on'); drawJump(); TV.focus(jList.querySelector('.jl')); }, onClose: () => { jump.classList.remove('on'); jList.innerHTML = ''; } } };
+  function openLayer(id) {   // each pop-up keeps the controls it took the remote from, and gives them back on close
+    const entry = { id, back: cur, saved: [...stage.querySelectorAll('[data-f]')].filter(el => !LAYERS[id].el.contains(el)) };
+    entry.saved.forEach(el => el.removeAttribute('data-f'));
+    popups.push(entry);
+    LAYERS[id].onOpen();
+  }
+  function closeLayer(id) {
+    const i = popups.map(l => l.id).lastIndexOf(id);
+    if (i < 0) return;
+    const entry = popups.splice(i, 1)[0];
+    LAYERS[id].onClose();
+    entry.saved.forEach(el => el.isConnected && el.setAttribute('data-f', ''));
+    const back = LAYERS[id].back ? LAYERS[id].back() : entry.back;
+    cur = null;
+    if (popups.length) { if (back?.isConnected) TV.focus(back); return; }   // the keyboard over another pop-up: back to the control that opened it
+    arm(); renderLive(); arm();
+    TV.focus(back?.isConnected && back.hasAttribute('data-f') ? back : stage.querySelector('.section:not(.is-off) [data-f]'));
+  }
+  function closeAll() { while (popups.length) closeLayer(topPopup().id); }
   function drawJump(keep) {
     J.inp.vals = ['Home', ...switchable().map(p => `HDMI ${p.n}${portName(p) !== `HDMI ${p.n}` ? ' // ' + portName(p) : ''}`), 'Live TV'];
     J.inp.i = Math.min(J.inp.i, J.inp.vals.length - 1);
     jList.innerHTML = Object.entries(J).map(([id, o]) => !o ? '<div class="jump__sep"></div>' : `
-      <div class="jl hd-frame" data-jl="${id}"${jumpOpen ? ' data-f' : ''}>
+      <div class="jl hd-frame" data-jl="${id}"${isOpen('jump') ? ' data-f' : ''}>
         <span class="jl__ico">${o.icon ? `<img src="${ICON(o.icon, '-mini')}" alt="">` : id === 'acc' ? `<span class="jl__sw" style="--sw:${swatch(o.i)}"></span>` : '<i></i>'}</span>
         <span class="jl__name">${o.name}</span>
         <span class="jl__val">${o.vals.length > 1 ? '<span class="arr">&lsaquo;</span>' : ''}${esc(valText(o))}${o.vals.length > 1 ? '<span class="arr">&rsaquo;</span>' : ''}</span>
@@ -1230,16 +1239,14 @@
   applyRows();
   setTheme(store.get('theme', 0), true);
   function openJump() {
-    if (jumpOpen || trapped) return;
+    if (popups.length) return;
     closeOpts(false);
-    jumpOpen = true; beforeJump = cur; trap(jump);
-    jump.classList.add('on'); drawJump();
-    TV.focus(jList.querySelector('.jl')); HD.glitch(jump);
+    openLayer('jump');
+    HD.glitch(jump);
   }
   function closeJump() {
-    if (!jumpOpen) return;
-    jumpOpen = false; jump.classList.remove('on'); jList.innerHTML = '';
-    untrap(beforeJump);
+    if (!isOpen('jump')) return;
+    closeLayer('jump');
   }
   function stepJump(id, d) {
     const o = J[id]; o.i = (o.i + d + o.vals.length) % o.vals.length;
@@ -1287,29 +1294,27 @@
 
   /* ---- input detected: an incoming call in the corner ---- */
   const call = $('call'), callGo = $('callGo'), callNo = $('callNo');
-  let callOpen = false, callPort = null, beforeCall = null;
+  let callPort = null;
+  LAYERS.call = { el: call, onOpen: () => { call.classList.add('on'); callGo.setAttribute('data-f', ''); callNo.setAttribute('data-f', ''); TV.focus(callGo); },
+    onClose: () => { call.classList.remove('on'); callGo.removeAttribute('data-f'); callNo.removeAttribute('data-f'); callGo.classList.remove('is-focus'); callNo.classList.remove('is-focus'); callPort.signal = true; callPort.t = Date.now(); } };
   function incoming(p = PORTS[2]) {
-    if (!p || callOpen || trapped || p.arc) return;
+    if (!p || popups.length || p.arc) return;
     closeOpts(false);
-    callOpen = true; callPort = p; beforeCall = cur;
+    callPort = p;
     $('callPort').firstChild.textContent = `Incoming // HDMI ${p.n}`;
     $('callName').textContent = portName(p); $('callImg').src = ICON(p.emblem, '-bg');
-    call.classList.add('on'); trap(call);
-    callGo.setAttribute('data-f', ''); callNo.setAttribute('data-f', '');
-    TV.focus(callGo);
+    openLayer('call');
   }
   function endCall(go) {
-    if (!callOpen) return;
-    callOpen = false; call.classList.remove('on');
-    callGo.removeAttribute('data-f'); callNo.removeAttribute('data-f'); callGo.classList.remove('is-focus'); callNo.classList.remove('is-focus');
-    callPort.signal = true; callPort.t = Date.now();
-    untrap(beforeCall);
+    if (!isOpen('call')) return;
+    closeLayer('call');
     if (go) switchPort(callPort);
   }
 
   /* ---- options (hold OK): apps and inputs ---- */
   const opts = $('opts'), oList = $('oList');
-  let optsOpen = false, optsFor = null, beforeOpts = null;
+  let optsFor = null, beforeOpts = null;
+  LAYERS.opts = { el: opts, back: () => beforeOpts, onOpen: () => {}, onClose: () => { opts.classList.remove('on'); oList.innerHTML = ''; } };
   const BUILT_IN = ['Play Store', 'Media Player'];
   function optItems() {
     if (optsFor.port) {
@@ -1337,23 +1342,22 @@
     if (again) { cur = null; TV.focus(again); }
   }
   function openOpts() {
-    if (!cur || optsOpen || trapped) return;
+    if (!cur || popups.length) return;
     const d = cur.dataset;
     if (d.app == null && !d.port) return;
-    optsFor = d.app != null ? { app: +d.app } : { port: d.port }; optsOpen = true; beforeOpts = cur;
+    optsFor = d.app != null ? { app: +d.app } : { port: d.port }; beforeOpts = cur;
     $('oTitle').textContent = 'Options // ' + (d.app != null ? APPS[+d.app].name : portName(PORTS.find(x => x.id === d.port)));
     const sr = stage.getBoundingClientRect(), kk = sr.width / 1920, cr = cur.getBoundingClientRect();
     const x = (cr.left - sr.left) / kk, ty = (cr.top - sr.top) / kk;
-    trap(opts); drawOpts();
+    openLayer('opts'); drawOpts();
     opts.style.left = Math.max(96, Math.min(1824 - 520, x)) + 'px';
     opts.classList.add('on');
     opts.style.top = Math.max(190, ty - opts.offsetHeight - 18) + 'px';
     TV.focus(oList.querySelector('[data-f]')); $('oWhy').textContent = '';
   }
   function closeOpts(refocusIt = true) {
-    if (!optsOpen) return;
-    optsOpen = false; opts.classList.remove('on'); oList.innerHTML = '';
-    untrap(refocusIt ? beforeOpts : beforeOpts);
+    if (!isOpen('opts')) return;
+    closeLayer('opts');
   }
   // only one port can be the audio out; marking it moves the sound output to the soundbar over ARC
   function setArc(p, on) {
@@ -1380,7 +1384,7 @@
       if (id === 'rename' && ok && isCustom(names[p.n - 1])) return openKbd(`HDMI ${p.n} // name`, customNames[p.n - 1], t => {
         customNames[p.n - 1] = t; store.set('names-custom', customNames); renderInputs(); renderLive(); arm();
         $('oTitle').textContent = 'Options // ' + portName(p); drawOpts('rename'); });
-      if (id === 'rename') { stepName(p, dir); saved = saved.filter(x => x.isConnected); saved.push(...stage.querySelectorAll('#inp [data-fi]')); stage.querySelectorAll('#inp [data-fi]').forEach(x => x.removeAttribute('data-f')); beforeOpts = stage.querySelector(`#inp [data-port="${p.id}"]`); $('oTitle').textContent = 'Options // ' + portName(p); return drawOpts('rename'); }
+      if (id === 'rename') { stepName(p, dir); const o = topPopup(); o.saved = o.saved.filter(x => x.isConnected); o.saved.push(...stage.querySelectorAll('#inp [data-fi]')); stage.querySelectorAll('#inp [data-fi]').forEach(x => x.removeAttribute('data-f')); beforeOpts = stage.querySelector(`#inp [data-port="${p.id}"]`); $('oTitle').textContent = 'Options // ' + portName(p); return drawOpts('rename'); }
       closeOpts();
       if (id === 'switch') return switchPort(p);
       if (id === 'info') return openInfo({ port: p.id });
@@ -1396,9 +1400,8 @@
     if (id === 'del') { if (NATIVE) NATIVE.uninstall(APPS[app].pkg); else toast('warn', 'Uninstall', `${name} stays`, 'This is a preview, so nothing is removed.'); }
     if (id === 'pin' || id === 'move') {
       saveFavs(); renderFavs();
-      optsOpen = false; opts.classList.remove('on'); oList.innerHTML = '';
-      trapped = false;
-      saved.forEach(el => el.isConnected && el.setAttribute('data-f', '')); saved = [];
+      const o = popups.splice(popups.map(l => l.id).lastIndexOf('opts'), 1)[0]; LAYERS.opts.onClose();
+      o.saved.forEach(el => el.isConnected && el.setAttribute('data-f', ''));
       arm();
       cur = null; TV.focus(stage.querySelector(`.section:not(.is-off) [data-app="${app}"]`) || $('fav').querySelector('[data-f]'));
       return;
@@ -1454,9 +1457,8 @@
 
   /* ---- Info as a scanner ---- */
   const info = $('info');
-  let infoOpen = false, beforeInfo = null;
+  LAYERS.info = { el: info, onOpen: () => {}, onClose: () => { info.hidden = true; $('iClose').removeAttribute('data-f'); } };
   function openInfo(o) {
-    infoOpen = true; beforeInfo = cur;
     const r = HD.rng(o.app != null ? APPS[o.app].name : o.port), num = (a, b) => a + Math.floor(r() * (b - a));
     let art, title, tags, glow;
     if (o.app != null) {
@@ -1480,7 +1482,7 @@
     setGlitchText($('iTitle'), title);
     $('iArt').innerHTML = art; $('iArt').style.setProperty('--glow', glow);
     $('iTags').innerHTML = tags.map(([k, v]) => `<span class="hd-tag"><span class="hd-tag__tick"></span>${k} <b>${esc(v)}</b></span>`).join('');
-    info.hidden = false; trap(info);
+    info.hidden = false; openLayer('info');
     // leader lines from points on the art to each tag
     const tagEls = [...$('iTags').children], box = info.querySelector('.info__box').getBoundingClientRect(), k = box.width / 1320;
     const pts = [[490, 170], [470, 250], [450, 320], [470, 400], [490, 470]];
@@ -1492,11 +1494,12 @@
     const sa = $('iArt'); sa.classList.remove('go'); void sa.offsetWidth; sa.classList.add('go');
     $('iClose').setAttribute('data-f', ''); TV.focus($('iClose')); HD.glitch($('iTitle'));
   }
-  function closeInfo() { if (!infoOpen) return; infoOpen = false; info.hidden = true; $('iClose').removeAttribute('data-f'); untrap(beforeInfo); }
+  function closeInfo() { if (!isOpen('info')) return; closeLayer('info'); }
 
   /* ---- Scan: search with a letter grid, typing or voice ---- */
   const search = $('search');
-  let searchOpen = false, query = '', beforeSearch = null;
+  let query = '';
+  LAYERS.search = { el: search, onOpen: () => { query = ''; $('sHeard').textContent = ''; search.hidden = false; drawSearch(); TV.focus(search.querySelector('.skey')); }, onClose: () => { search.hidden = true; search.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f')); } };
   const KEYS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
   $('sKeys').innerHTML = KEYS.map(c => `<button class="hd-btn skey" type="button" data-key="${c}">${c}</button>`).join('') +
     '<button class="hd-btn skey skey--wide" type="button" data-key=" ">Space</button><button class="hd-btn skey skey--wide" type="button" data-key="DEL">Delete</button>';
@@ -1508,22 +1511,25 @@
     if (keepFocus && !keepFocus.isConnected) { cur = null; TV.focus(search.querySelector('.skey')); }
   }
   function openSearch() {
-    if (searchOpen || trapped) return;
-    searchOpen = true; beforeSearch = cur; query = ''; $('sHeard').textContent = '';
-    search.hidden = false; trap(search); drawSearch();
-    TV.focus(search.querySelector('.skey'));
+    if (popups.length) return;
+    openLayer('search');
   }
-  function closeSearch() { if (!searchOpen) return; searchOpen = false; search.hidden = true; search.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f')); untrap(beforeSearch); }
+  function closeSearch() { if (!isOpen('search')) return; closeLayer('search'); }
   function typeKey(c) { query = c === 'DEL' ? query.slice(0, -1) : (query + c).slice(0, 24); drawSearch(cur); }
   function voice() {
     if (NATIVE) { $('sHeard').textContent = 'Voice search is coming later. Type the name instead.'; return; }
     $('sHeard').innerHTML = '<span class="hd-wave" aria-hidden="true"><i style="--h:40%"></i><i style="--h:90%"></i><i style="--h:60%"></i><i style="--h:80%"></i></span> Listening...';
-    setTimeout(() => { if (!searchOpen) return; query = 'spot'; $('sHeard').textContent = 'Heard: "Spotify"'; drawSearch(cur); }, reduce ? 300 : 1300);
+    setTimeout(() => { if (!isOpen('search')) return; query = 'spot'; $('sHeard').textContent = 'Heard: "Spotify"'; drawSearch(cur); }, reduce ? 300 : 1300);
   }
 
   /* ---- first-run setup: favorites, color, input names ---- */
   const setup = $('setup');
-  let setupOpen = false, step = 0;
+  let step = 0;
+  LAYERS.setup = { el: setup, back: () => $('fav').querySelector('[data-fi]'), onOpen: () => {}, onClose: () => {
+    setup.hidden = true; setup.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f'));
+    store.set('setup-done', true);
+    renderAll();
+  } };
   const STEP_T = [['Pick your favorites', 'Up to seven apps for the top row. OK picks or unpicks.'],
                   ['Pick a color', 'It tints the whole screen. You can change it later in Jump To.'],
                   ['Name your inputs', 'Left and right choose a name. Auto uses the name the device gives itself.'],
@@ -1540,9 +1546,8 @@
     setup.querySelectorAll('.setup__foot .hd-btn[hidden]').forEach(el => el.removeAttribute('data-f'));
   }
   function openSetup() {
-    if (setupOpen) return;
-    if (trapped) return;
-    setupOpen = true; step = 0; setup.hidden = false; trap(setup); drawSetup();
+    if (popups.length) return;
+    step = 0; setup.hidden = false; openLayer('setup'); drawSetup();
     TV.focus(setup.querySelector('#stBody [data-f]'));
   }
   function setupGo(d) {
@@ -1551,10 +1556,8 @@
     drawSetup(); cur = null; TV.focus(setup.querySelector('#stBody [data-f]'));
   }
   function closeSetup(done) {
-    if (!setupOpen) return;
-    setupOpen = false; setup.hidden = true; setup.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f'));
-    store.set('setup-done', true);
-    renderAll(); untrap($('fav').querySelector('[data-fi]'));
+    if (!isOpen('setup')) return;
+    closeLayer('setup');
     if (done) { toast('reward', 'Setup', 'All set', 'Run it again any time from Jump To.'); setTimeout(() => showHints(), 4000); }
     else showHints();
   }
@@ -1568,7 +1571,8 @@
 
   /* ---- on-screen keyboard: custom row and input names; arrows plus OK, or real typing; Back cancels ---- */
   const kbd = $('kbd');
-  let kbdOpen = false, kbdText = '', kbdCb = null, kbdBack = null, kbdSaved = [];
+  let kbdText = '', kbdCb = null;
+  LAYERS.kbd = { el: kbd, onOpen: () => {}, onClose: () => { kbd.hidden = true; kbd.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f')); } };
   $('kKeys').innerHTML = KEYS.map(c => `<button class="hd-btn skey" type="button" data-kkey="${c}">${c}</button>`).join('') +
     '<button class="hd-btn skey skey--wide" type="button" data-kkey=" ">Space</button><button class="hd-btn skey skey--wide" type="button" data-kkey="DEL">Delete</button>';
   function drawKbd() {
@@ -1585,19 +1589,14 @@
     drawKbd();
   }
   function openKbd(title, value, cb) {
-    kbdOpen = true; kbdText = value || ''; kbdCb = cb; kbdBack = cur;
+    openLayer('kbd'); kbdText = value || ''; kbdCb = cb;
     $('kTitle').textContent = title;
-    kbdSaved = [...stage.querySelectorAll('[data-f]')].filter(el => !kbd.contains(el));
-    kbdSaved.forEach(el => el.removeAttribute('data-f'));
     kbd.hidden = false; kbd.querySelectorAll('.skey, #kCancel, #kDone').forEach(el => el.setAttribute('data-f', ''));
     drawKbd(); cur = null; TV.focus(kbd.querySelector('.skey'));
   }
   function closeKbd(save) {
-    if (!kbdOpen) return;
-    kbdOpen = false; kbd.hidden = true;
-    kbd.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f'));
-    kbdSaved.forEach(el => el.isConnected && el.setAttribute('data-f', '')); kbdSaved = [];
-    cur = null; if (kbdBack?.isConnected) TV.focus(kbdBack);
+    if (!isOpen('kbd')) return;
+    closeLayer('kbd');
     const t = kbdText.trim();
     if (save && t) kbdCb(t);
   }
@@ -1700,7 +1699,7 @@
     const again = keep && host.querySelector(`[data-ex="${keep}"]`);
     if (again) { cur = null; TV.focus(again); }
   }
-  function redrawEx(keep) { if (exHost?.isConnected && (extrasOpen || setupOpen)) drawEx(exHost, keep || cur?.dataset.ex); }
+  function redrawEx(keep) { if (exHost?.isConnected && (isOpen('extras') || isOpen('setup'))) drawEx(exHost, keep || cur?.dataset.ex); }
   function exStep(id, d) {
     if (id === 'on') { WX.on = !WX.on; store.set('wx-on', WX.on); if (WX.on && !WX.city) setCity(CITIES[0]); else if (WX.on) wxFetch(); drawWx(); }
     if (id === 'unit') { WX.unit = WX.unit === 'F' ? 'C' : 'F'; store.set('wx-unit', WX.unit); drawWx(); }
@@ -1715,16 +1714,14 @@
     exStep(id, 1);
   }
   const extras = $('extras'), exList = $('exList');
-  let extrasOpen = false, beforeExtras = null;
+  LAYERS.extras = { el: extras, onOpen: () => { extras.hidden = false; drawEx(exList); TV.focus(exList.querySelector('[data-f]')); }, onClose: () => { extras.hidden = true; exList.innerHTML = ''; } };
   function openExtras() {
-    if (extrasOpen || trapped) return;
-    extrasOpen = true; beforeExtras = cur; trap(extras);
-    extras.hidden = false; drawEx(exList);
-    TV.focus(exList.querySelector('[data-f]'));
+    if (popups.length) return;
+    openLayer('extras');
   }
   function closeExtras() {
-    if (!extrasOpen) return;
-    extrasOpen = false; extras.hidden = true; exList.innerHTML = ''; untrap(beforeExtras);
+    if (!isOpen('extras')) return;
+    closeLayer('extras');
   }
   drawWx();
 
@@ -1801,10 +1798,10 @@
     $('rFreq').innerHTML = t + (tot ? `<span class="radio__total"> / ${tot}</span>` : '');
   }
   function drawRadio() {
-    const a = APPS[NOW.app], on = !NATIVE || !!NOW.track, rp = $('rPlay');
+    const a = APPS[NOW.app], on = !NATIVE || !!NOW.track, rp = $('rPlay'), held = popups[0];   // the bottom pop-up holds the deck's controls
     $('radio').style.visibility = on ? '' : 'hidden';
-    if (!on) { rp.removeAttribute('data-f'); saved = saved.filter(x => x !== rp); if (cur === rp) { cur = null; TV.focus(stage.querySelector('.section:not(.is-off) [data-f]')); } }
-    else if (trapped) { if (!saved.includes(rp)) saved.push(rp); } else rp.setAttribute('data-f', '');
+    if (!on) { rp.removeAttribute('data-f'); if (held) held.saved = held.saved.filter(x => x !== rp); if (cur === rp) { cur = null; TV.focus(stage.querySelector('.section:not(.is-off) [data-f]')); } }
+    else if (held) { if (!held.saved.includes(rp)) held.saved.push(rp); } else rp.setAttribute('data-f', '');
     $('radio').style.setProperty('--app', a ? a.glow : '#5ef6ff');
     $('radio').classList.toggle('no-station', !NOW.station);   // no album: the title line sits alone, the app named once
     $('rApp').textContent = a ? a.name : NOW.label; $('rStation').textContent = NOW.station; $('rTrack').textContent = NOW.track; $('rArtist').textContent = NOW.artist;
@@ -1898,10 +1895,10 @@
   const spot = () => { sbPos.style.transform = `translate(${80 + Math.random() * 1000}px, ${80 + Math.random() * 560}px)`; };
   function drift() { if (reduce) return spot(); sbPos.classList.add('fade'); setTimeout(() => { spot(); sbPos.classList.remove('fade'); }, 650); }
   function sleep() {
-    if (sleeping || setupOpen) return;
+    if (sleeping || isOpen('setup')) return;
     if (moving) endMove(false);
-    closeKbd(false);   // the keyboard sits on top; close it (without saving) before the overlay under it
-    endCall(false); closeOpts(); closeJump(); closeInfo(); closeSearch(); endLink();
+    closeAll();   // every pop-up on the stack, top first (the keyboard before the one under it), without saving
+    endLink();
     document.querySelectorAll('.hd-toast').forEach(t => t.remove());
     sleeping = true; spot(); standby.classList.add('on');
     driftTimer = setInterval(drift, 20000);
@@ -1957,7 +1954,8 @@
       else if (back) endMove(false);
       return;
     }
-    if (kbdOpen) {
+    const layer = topPopup()?.id;   // the pop-up on top gets the keys (the stack is [], [X] or [X, kbd])
+    if (layer === 'kbd') {
       if (k === 'Escape') { stop(); return closeKbd(false); }
       if (k === 'Backspace') { stop(); return kType('DEL'); }
       if (e.key.length === 1 && /^[a-zA-Z0-9 +&'.-]$/.test(e.key) && !e.ctrlKey && !e.metaKey) { stop(); return kType(e.key, true); }
@@ -1966,7 +1964,7 @@
       if (k === 'ArrowDown' && nothingBelow($('kKeys'), cur)) { stop(); return TV.focus($('kDone')); }
       return;
     }
-    if (setupOpen) {
+    if (layer === 'setup') {
       if (back) { stop(); return closeSetup(false); }
       if ((k === 'ArrowLeft' || k === 'ArrowRight') && cur?.dataset.ex) { stop(); return exStep(cur.dataset.ex, k === 'ArrowLeft' ? -1 : 1); }
       if ((k === 'ArrowLeft' || k === 'ArrowRight') && cur?.dataset.nl) { stop(); stepName(PORTS.find(p => p.id === cur.dataset.nl), k === 'ArrowLeft' ? -1 : 1); return drawSetupKeep(cur.dataset.nl); }
@@ -1976,20 +1974,20 @@
       if (k === 'ArrowDown' && cur?.closest('#stBody') && nothingBelow($('stBody'), cur)) { stop(); return TV.focus($('stNext')); }
       return;
     }
-    if (searchOpen) {
+    if (layer === 'search') {
       if (k === 'Escape') { stop(); return closeSearch(); }
       if (k === 'Backspace') { stop(); return typeKey('DEL'); }
       if (/^[a-z0-9 ]$/.test(k) && !e.ctrlKey && !e.metaKey) { stop(); return typeKey(k.toUpperCase()); }
       return;
     }
-    if (infoOpen) { if (back) { stop(); closeInfo(); } else if (k.startsWith('Arrow')) stop(); return; }
-    if (callOpen) {
+    if (layer === 'info') { if (back) { stop(); closeInfo(); } else if (k.startsWith('Arrow')) stop(); return; }
+    if (layer === 'call') {
       if (k === 'ArrowLeft' || k === 'ArrowRight') { stop(); TV.focus(cur === callGo ? callNo : callGo); }
       else if (back) { stop(); endCall(false); }
       else if (k.startsWith('Arrow')) stop();
       return;
     }
-    if (extrasOpen) {
+    if (layer === 'extras') {
       const items = [...exList.querySelectorAll('[data-f]')], i = items.indexOf(cur);
       if (k === 'ArrowUp' || k === 'ArrowDown') { stop(); cur = null; TV.focus(items[(i + (k === 'ArrowUp' ? -1 : 1) + items.length) % items.length]); }
       else if ((k === 'ArrowLeft' || k === 'ArrowRight') && items[i]) { stop(); exStep(items[i].dataset.ex, k === 'ArrowLeft' ? -1 : 1); }
@@ -1997,7 +1995,7 @@
       else if (k === 'Enter' && e.repeat) stop();
       return;
     }
-    if (jumpOpen) {
+    if (layer === 'jump') {
       const items = [...jList.querySelectorAll('.jl')], i = items.indexOf(cur);
       if (k === 'ArrowUp' || k === 'ArrowDown') { stop(); cur = null; TV.focus(items[(i + (k === 'ArrowUp' ? -1 : 1) + items.length) % items.length]); }
       else if (k === 'ArrowLeft' || k === 'ArrowRight') { stop(); if (i >= 0 && items[i].dataset.jl) stepJump(items[i].dataset.jl, k === 'ArrowLeft' ? -1 : 1); }
@@ -2005,7 +2003,7 @@
       else if (k === 'Enter' && e.repeat) stop();
       return;
     }
-    if (optsOpen) {
+    if (layer === 'opts') {
       const items = [...oList.querySelectorAll('[data-f]')], i = items.indexOf(cur);
       if (k === 'ArrowUp' || k === 'ArrowDown') { stop(); $('oWhy').textContent = ''; cur = null; TV.focus(items[(i + (k === 'ArrowUp' ? -1 : 1) + items.length) % items.length]); }
       else if ((k === 'ArrowLeft' || k === 'ArrowRight') && ['rename', 'arc'].includes(items[i]?.dataset.opt)) { stop(); runOpt(items[i], k === 'ArrowLeft' ? -1 : 1, false); }
@@ -2057,8 +2055,8 @@
   stage.addEventListener('click', e => {
     if (booting) { e.stopImmediatePropagation(); finishBoot(); }
     else if (inputLink) { e.stopImmediatePropagation(); endLink(); }
-    else if (optsOpen && !e.target.closest('.opts')) { e.stopImmediatePropagation(); closeOpts(); }
-    else if (jumpOpen && !e.target.closest('.jump')) { e.stopImmediatePropagation(); closeJump(); }
+    else if (isOpen('opts') && !e.target.closest('.opts')) { e.stopImmediatePropagation(); closeOpts(); }
+    else if (isOpen('jump') && !e.target.closest('.jump')) { e.stopImmediatePropagation(); closeJump(); }
   }, true);
   // a port tile's OK goes through tv.js as a click; tv.js only launches data-app tiles, so ports are handled in tv:select above
 
