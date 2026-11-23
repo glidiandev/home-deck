@@ -29,14 +29,18 @@ A 45-second tour of the favorites, Apps, moving an app, Inputs and Jump To: [wat
   its art fading in behind.
 - **Music bar.** What's playing, the artist, the track time, and play/pause. Long titles scroll like a car stereo.
 - **Jump To.** Hold Back anywhere for the quick panel: the TV's picture and sound settings, inputs, the names of
-  the two rows, a theme (Normal, Lime or Violet), an accent color that tints everything, how soon the away screen comes on, what it shows, clock seconds, Lite mode, online extras,
-  setup, app order and About.
+  the two rows, a theme (Normal, Lime or Violet), an accent color that tints everything, how soon the away screen comes on, what it shows and whether it shows the time, clock seconds, Lite mode, online extras,
+  setup, hidden apps, app order, the Home button helper and About.
 - **Away screen.** After 5 minutes of nothing, the screen dims to a clock that moves every 20 seconds, so nothing
   burns in. Pick 1, 3, 5 or 10 minutes in Jump To.
 - **Rainy city.** Or let the away screen look out of a window at a neon city in the rain: blurry lights, drops
   running down the glass, traffic, the odd police chase and lightning, with the time glowing in the city. Two views,
   Window and Downpour (a storm, right up against the glass), in your theme's colors. Pick it in Jump To > Screen
   saver. On a TV that can't keep it smooth, the rain gets lighter, and if that's still too much, the clock comes back.
+- **Shuffle.** The away screen moves between the clock, Window and Downpour every 10 minutes, starting somewhere new
+  each time. It's what you get until you pick one yourself. In Lite mode it keeps to the clock.
+- **No clock, if you like.** Turn off Jump To > Screen saver clock and the away screen shows no time at all: the
+  rain has no clock in it, Shuffle only uses the rain, and Clock becomes a plain dark screen.
 - **Screen saver.** The same away screen as your TV's screen saver, for when you're in another app. See
   [Screen saver](#screen-saver).
 - **First-run setup.** Pick your favorites, a color and names for your inputs. Skip it if you like; it's in Jump To
@@ -65,7 +69,7 @@ Install or remove an app and Home Deck updates itself.
 |---|---|
 | Arrows | Move around. Going past the end of a row carries on to the next one, and on to the next section. |
 | OK | Open |
-| Hold OK | Options: open, pin to favorites, move, info, uninstall (on inputs: switch, name, audio out) |
+| Hold OK | Options: open, pin to favorites, move, rename, hide, info, uninstall (on inputs: switch, name, audio out) |
 | Back | Climb back up: to the first row, then the section's tab, then Home |
 | Hold Back | Jump To |
 | Play/pause | Play or pause whatever's in the music bar |
@@ -78,6 +82,15 @@ Hold OK on an app and pick **Move**. It lifts, and Left and Right slide it along
 between lines in a big group). OK drops it there, Back puts it back. Favorites can be reordered freely, empty spots
 included. In Apps you can reorder inside each group, and new apps you install land at the end of their group.
 **Jump To > App order** puts everything back the way it was.
+
+### Hiding and renaming apps
+
+Hold OK on an app and pick **Hide** to take it out of Apps, Favorites, Jump back in and search. It stays installed.
+**Jump To > Hidden apps** lists what you've hidden: Left and Right pick one, OK brings it back.
+
+Pick **Rename** to give an app your own name in Home Deck. It shows on its tile caption, at the top when you move to
+it, in Jump back in and in search (which still finds it by its real name too). The app itself keeps its name, and
+**Original name** in the same menu puts it back. Apps with their own tile art keep their logo on the tile.
 
 ![Jump To](docs/jump-to.png)
 
@@ -111,7 +124,8 @@ used last, so you might just see "no signal" there.
 ## Screen saver
 
 Home Deck also adds its away screen to Android's screen savers: the dim clock and the date, moving every 20 seconds,
-or the rainy city if you picked it in Jump To > Screen saver. If the weather is on in Home Deck, the clock shows that too. Any button wakes the TV, and the TV still goes to sleep on its
+or the rainy city or Shuffle if you picked it in Jump To > Screen saver, with or without the time (Screen saver clock).
+If the weather is on in Home Deck, the clock shows that too. Any button wakes the TV, and the TV still goes to sleep on its
 own timer.
 
 Pick **Home Deck** in Settings > Device Preferences > Screen saver. If your TV hides that menu, use adb:
@@ -132,8 +146,12 @@ Everything works offline. The extras only connect when you switch them on, in **
 
 - **Weather.** A small readout beside the clock, from [Open-Meteo](https://open-meteo.com) (free, no account).
   Pick a city from the list or type one. It updates every 30 minutes and keeps the last reading when you're offline.
+- **Update check.** About once a day, Home Deck asks GitHub which version is the newest release (the same public
+  address anyone can open: `api.github.com/repos/glidiandev/home-deck/releases/latest`). If there's a newer one, a
+  note says so once, and Jump To > About shows it. It never downloads or installs anything: you update with adb, the
+  same way you installed it.
 
-That's the only reason Home Deck has the internet permission. With the extras off, it doesn't connect to anything.
+These are the only reasons Home Deck has the internet permission. With the extras off, it doesn't connect to anything.
 
 ## What Android doesn't let a home screen do
 
@@ -194,6 +212,23 @@ adb shell pm disable-user --user 0 com.google.android.apps.tv.launcherx
 > Installing another app that can be a home screen can make the TV forget your choice. If Home stops opening Home
 > Deck, run the `set-home-activity` command again.
 
+### Home button helper (optional)
+
+On a lot of Google TVs, Home keeps going to Google's home screen whatever you set. Instead of switching Google's
+launcher off, you can let Home Deck answer the Home button itself. Give it one permission, once:
+
+```bash
+adb shell pm grant dev.glidian.homedeck android.permission.WRITE_SECURE_SETTINGS
+```
+
+Then turn it on in **Jump To > Home button**. From then on, Home opens Home Deck, and if Google's home screen comes up
+anyway (when the TV wakes, say), Home Deck opens over it. It's an accessibility service that only gets the Home
+button and only hears about Google's own TV home screens. It never sees other apps or anything on the screen.
+
+While it's on, holding Home no longer opens the TV's own quick panel (Jump To has the TV's settings), and on some TVs
+holding a volume button steps it once instead of repeating. Turn it off in the same place. The permission only lets
+Home Deck switch its own helper on and off; to take it back, run the same command with `revoke` instead of `grant`.
+
 ### Switching back
 
 To go back to your old home screen, point Home at it again. This lists the home screens on your TV:
@@ -234,15 +269,21 @@ adb shell cmd notification disallow_listener dev.glidian.homedeck/dev.glidian.ho
 adb uninstall dev.glidian.homedeck
 ```
 
+Uninstalling also removes the Home button helper, if you had it on.
+
 ## Privacy
 
-- Your favorites, app order, names, color and settings stay on the TV.
+- Your favorites, app order, names, hidden apps, color and settings stay on the TV.
 - Jump back in only knows about apps you opened from Home Deck. Nothing is sent anywhere.
 - The music bar reads the title, artist, app, time and play state of what's playing, and nothing else. It never
   looks at your notifications.
-- The internet permission is only for the online extras, and they're off until you turn them on.
-- It also asks for `ACCESS_NETWORK_STATE` and `ACCESS_WIFI_STATE` (for the Network tile), and
-  `REQUEST_DELETE_PACKAGES` (so Uninstall can open Android's own confirmation).
+- The internet permission is only for the online extras (weather, update check), and they're off until you turn
+  them on. Like any website, the services they ask see the TV's IP address.
+- The Home button helper, if you turn it on, only gets the Home button and hears when Google's own home screens come
+  to the front. It reads no screen content and keeps nothing.
+- It also asks for `ACCESS_NETWORK_STATE` and `ACCESS_WIFI_STATE` (for the Network tile),
+  `REQUEST_DELETE_PACKAGES` (so Uninstall can open Android's own confirmation), and `WRITE_SECURE_SETTINGS`, which
+  Android only grants if you run the adb command above, and which Home Deck only uses to switch its own helper.
 
 ## Smooth on slow TVs
 

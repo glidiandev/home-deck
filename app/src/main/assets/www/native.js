@@ -54,5 +54,9 @@ window.NATIVE = (() => {
     switchInput: id => B.switchInput(id),
     openLiveTv: () => B.openLiveTv(),
     openSettings: which => B.openSettings(which),
+    // the opt-in Home button helper: is it on, switch it ('on', 'off', or 'grant' when the one-time adb grant is missing)
+    homeHelper: () => B.homeHelper(),
+    setHomeHelper: on => B.setHomeHelper(on),
+    homeHelperCommand: () => B.homeHelperCommand(),
   };
 })();

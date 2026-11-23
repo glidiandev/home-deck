@@ -9,5 +9,6 @@
 .time__now small { font-size: .48em; color: #f2fffd; text-shadow: 0 0 8px var(--hd-act), 0 0 30px var(--hd-act), 0 0 70px var(--hd-act); }
 .time__date { font-family: var(--hd-font-ui); font-weight: 400; font-size: 32px; letter-spacing: .32em; text-transform: uppercase; color: #f2fffd;
               text-shadow: 0 0 14px var(--hd-act), 0 0 30px var(--hd-act); }
+.no-clock .time { visibility: hidden; }                                                    /* Screen saver clock: Off */
 .glass-fog { position: absolute; inset: 72% 0 0; pointer-events: none;                          /* a little condensation along the bottom */
              background: linear-gradient(180deg, rgba(170, 185, 220, 0), rgba(170, 185, 220, .07)); }

@@ -658,6 +658,7 @@
 <script src="kit/kit.js"></script>
 <script src="native.js"></script>
 <script src="marquee.js"></script>
+<script src="saver.js"></script>
 <script>
   const stage = document.querySelector('.stage');
   const root = document.documentElement;
@@ -749,6 +750,15 @@
         : { name: a.label, kind: a.kind, file: null, plain: a.icon, glow: '#8f8889', pkg: a.pkg, system: a.system, bg: '#0b0b10', fg: '#fff' });
     });
   }
+  // the viewer's own names for apps and the apps they hid, both kept by package (by name in the browser preview).
+  // `base` is the app's real name: it places the app in its group and is what Original name goes back to.
+  const appKey = a => a.pkg || a.base;
+  APPS.forEach(a => { a.base = a.name; });
+  const RENAMED = (o => o && typeof o === 'object' && !Array.isArray(o) ? o : {})(store.get('renamed', {}));
+  APPS.forEach(a => { const n = RENAMED[appKey(a)]; if (typeof n === 'string' && n.trim()) a.name = n; });
+  let HIDDEN = store.get('hidden', []);
+  if (!Array.isArray(HIDDEN)) HIDDEN = [];
+  const isHidden = i => HIDDEN.includes(appKey(APPS[i]));
   const DESC = {
     Streaming: 'Films and series on demand.', Video: 'Videos, channels and your subscriptions.', Anime: 'Anime, the same day as Japan.',
     Music: 'Music, playlists and podcasts.', Games: 'Games on the big screen.', Store: 'Get more apps for this TV.',
@@ -839,7 +849,7 @@
   let OPENED = NATIVE ? NATIVE.recents() : null;   // on the TV: when each app was last opened from here
   const lastOpened = i => OPENED ? (OPENED[APPS[i].pkg] ? Math.max(0, Math.round((Date.now() - OPENED[APPS[i].pkg]) / 60000)) : Infinity)
     : AGO[i] ?? 1440 * (3 + (i * 7) % 20);
-  const recent = () => APPS.map((_, i) => i).sort((a, b) => (lastOpened(a) - lastOpened(b)) || 0).slice(0, 5);
+  const recent = () => APPS.map((_, i) => i).filter(i => !isHidden(i)).sort((a, b) => (lastOpened(a) - lastOpened(b)) || 0).slice(0, 5);
   const agoText = m => m === Infinity ? 'not yet' : m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : m < 2880 ? 'yesterday' : `${Math.round(m / 1440)} days ago`;
   // what is playing (a sample track in the preview) for the radio strip
   const NOW = NATIVE ? { app: -1, label: '', station: '', track: '', artist: '', len: 0, t: 0, playing: false } : { app: 8, station: 'Night Drive FM', track: 'Glass Static', artist: 'Halcyon Wire', len: 238, t: 102, playing: true };
@@ -877,6 +887,7 @@
       favs = Array.from({ length: FAVS }, (_, n) => n < 5 ? first[n] ?? null : null);
     }
   }
+  favs = favs.map(i => i != null && APPS[i] && isHidden(i) ? null : i);   // a hidden app never holds a favorite spot
   const saveFavs = () => { store.set('favs', favs); if (NATIVE) store.set('favs-pkg', favs.map(i => i == null ? null : APPS[i].pkg)); };
   function renderFavs() {
     $('cnt-fav').textContent = two(favs.filter(i => i != null).length);
@@ -885,15 +896,16 @@
       : appTile(i)).join('');
   }
   function renderApps() {
-    const idx = n => APPS.findIndex(a => a.name === n), seen = new Set();
+    const idx = n => APPS.findIndex(a => a.base === n), seen = new Set();
     const groups = GROUPS.map(([g, names]) => [g, names.map(idx).filter(i => i >= 0)]);
     groups.forEach(([, l]) => l.forEach(i => seen.add(i)));
     // anything else on the TV joins the group for its kind, or the last group
     const KIND_GROUP = { Streaming: 0, Video: 1, Anime: 1, 'Free TV': 1, 'Live streams': 1, 'Live TV': 2, Sport: 2, News: 2,
                          Music: 3, Radio: 3, Kids: 4, Games: 5, Player: 6, Media: 6 };
     APPS.forEach((a, i) => { if (!seen.has(i)) groups[KIND_GROUP[a.kind] ?? groups.length - 1][1].push(i); });
+    groups.forEach(g => { g[1] = g[1].filter(i => !isHidden(i)); });   // hidden apps stay installed, just not shown
     // the viewer's own order inside each group, kept by package; apps not in it (new ones) follow in their usual order
-    const order = store.get('order', {}), keyOf = i => APPS[i].pkg || APPS[i].name;
+    const order = store.get('order', {}), keyOf = i => appKey(APPS[i]);
     groups.forEach(([g, l]) => {
       const o = order[g];
       if (Array.isArray(o)) l.sort((a, b) => { const x = o.indexOf(keyOf(a)), y = o.indexOf(keyOf(b)); return (x < 0 ? 1e6 : x) - (y < 0 ? 1e6 : y); });
@@ -942,7 +954,7 @@
   Promise.all(APPS.map(async a => {
     if (a.file) return;
     if (a.plain) { a.glow = await mainColor(a.plain); a.bgImg = a.plain; }
-    else { a.glow = hashCol(a.name); await fontsReady; a.bgImg = initialsArt(initials(a.name), a.glow); }
+    else { a.glow = hashCol(a.base); await fontsReady; a.bgImg = initialsArt(initials(a.name), a.glow); }
     a.fg = a.glow;
   })).then(() => { const f = cur; renderFavs(); renderApps(); arm(); refocus(f); });
 
@@ -1168,9 +1180,10 @@
     const i = n >= 0 ? n : old > 0 ? old + 1 : 0;
     return i >= 0 && i < ACCENTS.length ? i : 0;
   };
-  // what the away screen (and the TV's screen saver, away.html) shows: the dim clock, or one of the rainy city views
-  const SAVERS = [['Clock', null], ['Window', 'window'], ['Downpour', 'downpour']];
-  const savedSaver = () => { const i = store.get('saver', 0); return i >= 0 && i < SAVERS.length ? i : 0; };
+  // what the away screen (and the TV's screen saver, away.html) shows: the dim clock, one of the rainy city views, or
+  // Shuffle (saver.js). Shuffle is also what anyone who never picked one gets; a pick, once made, stays.
+  const SAVERS = [['Clock', null], ['Window', 'window'], ['Downpour', 'downpour'], ['Shuffle', 'shuffle']];
+  const savedSaver = () => { const i = store.get('saver', AwayScenes.SHUFFLE); return i >= 0 && i < SAVERS.length ? i : AwayScenes.SHUFFLE; };
   const J = {
     pic:   { name: 'Picture mode', icon: 'picture', vals: ['Cinema', 'Vivid', 'Game', 'Standard'], i: 0 },
     snd:   { name: 'Sound output', icon: 'sound', vals: ['TV speakers', 'Soundbar (HDMI ARC)', 'Soundbar (optical)', 'Bluetooth'], i: store.get('snd', 1) },
@@ -1183,12 +1196,14 @@
     acc:   { name: 'Accent color', vals: ACCENTS.map(a => a[0]), i: savedAccent() },
     away:  { name: 'Away screen', vals: ['1 min', '3 min', '5 min', '10 min'], i: [0, 1, 2, 3].includes(store.get('away', 2)) ? store.get('away', 2) : 2 },
     saver: { name: 'Screen saver', vals: SAVERS.map(s => s[0]), i: savedSaver() },
+    sclock: { name: 'Screen saver clock', vals: ['On', 'Off'], i: store.get('saver-clock', 0) === 1 ? 1 : 0 },
     secs:  { name: 'Clock seconds', vals: ['On', 'Off'], i: store.get('secs', 0) === 1 ? 1 : 0 },
     lite:  { name: 'Lite mode', vals: ['Off', 'On'], i: 0 },
     ext:   { name: 'Online extras', vals: ['Open'], i: 0 },
     setup: { name: 'Setup', vals: ['Run again'], i: 0 },
   };
   const jump = $('jump'), jList = $('jList');
+  J.hid = { name: 'Hidden apps', vals: ['None'], i: 0, list: [] };   // filled in drawJump: left and right pick, OK shows it again
   J.order = { name: 'App order', vals: ['Reset'], i: 0 };
   J.about = { name: 'About', vals: ['Home Deck'], i: 0 };
   if (NATIVE) {   // a home screen app can't change the picture, sound or sleep timer itself, so these open the TV's own settings
@@ -1197,6 +1212,7 @@
     delete J.sleep;
     J.music = { name: 'Music bar', vals: [NATIVE.nowPlaying().access ? 'On' : 'Off // OK to turn on'], i: 0, open: 'listener' };
     J.tv = { name: 'All TV settings', vals: ['Open'], i: 0, open: 'all' };
+    J.homekey = { name: 'Home button', vals: ['Off'], i: 0 };   // filled in drawJump from the helper's real state
   }
   const topPopup = () => popups[popups.length - 1] || null;
   const isOpen = id => popups.some(l => l.id === id);
@@ -1223,6 +1239,11 @@
   function drawJump(keep) {
     J.inp.vals = ['Home', ...switchable().map(p => `HDMI ${p.n}${portName(p) !== `HDMI ${p.n}` ? ' // ' + portName(p) : ''}`), 'Live TV'];
     J.inp.i = Math.min(J.inp.i, J.inp.vals.length - 1);
+    J.hid.list = APPS.map((_, i) => i).filter(isHidden);
+    J.hid.vals = J.hid.list.length ? J.hid.list.map(i => `${APPS[i].name} // OK to show`) : ['None'];
+    J.hid.i = Math.min(J.hid.i, J.hid.vals.length - 1);
+    if (J.homekey) J.homekey.vals = [NATIVE.homeHelper() ? 'Opens Home Deck // OK to turn off' : 'Off // OK to turn on'];
+    J.about.vals = [UPD.latest && newer(UPD.latest, VER) ? `v${UPD.latest} is out` : 'Home Deck'];
     jList.innerHTML = Object.entries(J).map(([id, o]) => !o ? '<div class="jump__sep"></div>' : `
       <div class="jl hd-frame" data-jl="${id}"${isOpen('jump') ? ' data-f' : ''}>
         <span class="jl__ico">${o.icon ? `<img src="${ICON(o.icon, '-mini')}" alt="">` : id === 'acc' ? `<span class="jl__sw" style="--sw:${swatch(o.i)}"></span>` : '<i></i>'}</span>
@@ -1255,6 +1276,7 @@
     if (id === 'snd') store.set('snd', o.i);
     if (id === 'away') { store.set('away', o.i); IDLE = 60000 * AWAY_MIN[o.i]; poke(); }
     if (id === 'saver') store.set('saver', o.i);
+    if (id === 'sclock') store.set('saver-clock', o.i);
     if (id === 'secs') { store.set('secs', o.i); tick(); }
     if (id === 'lite') { setLite(o.i === 1); return; }
     if (id === 'theme') { setTheme(o.i); return drawJump(id); }
@@ -1262,7 +1284,20 @@
   }
   function okJump(id) {
     const o = J[id];
-    if (id === 'about') { closeJump(); return toast('area', 'About', `Home Deck v${VER}`, 'Fan-made and free. App names and logos belong to their owners. Not affiliated with or endorsed by any of them.', 15000); }
+    if (id === 'about') {
+      closeJump();
+      const up = UPD.latest && newer(UPD.latest, VER) ? ` Home Deck v${UPD.latest} is out: get it from glidian.dev/home-deck.` : '';
+      return toast('area', 'About', `Home Deck v${VER}`, 'Fan-made and free. App names and logos belong to their owners. Not affiliated with or endorsed by any of them.' + up, 15000);
+    }
+    if (id === 'hid') { const i = J.hid.list[J.hid.i]; if (i == null) return; unhideApp(i); return drawJump('hid'); }
+    if (id === 'homekey') {
+      const on = !NATIVE.homeHelper(), r = NATIVE.setHomeHelper(on);
+      if (r === 'grant') { closeJump(); return toast('area', 'Home button', 'One adb command first', `Run ${NATIVE.homeHelperCommand()} once, then turn it on here.`, 20000); }
+      toast('job', 'Home button', on ? 'Opens Home Deck now' : 'Back to normal', on
+        ? 'Home opens Home Deck, even where Google TV keeps its own home screen. Holding Home and repeating volume may not work while it is on.'
+        : 'The Home button does what the TV does by itself again.', 9000);
+      return drawJump('homekey');
+    }
     if (id === 'order') { closeJump(); store.set('order', {}); renderApps(); arm(); return toast('job', 'Apps', 'Order reset', 'Each group is back in its usual order.'); }
     if (o.open) {
       closeJump();
@@ -1328,6 +1363,9 @@
       { id: 'open', label: 'Open' },
       { id: 'pin', label: pinned ? 'Unpin' : 'Pin to favorites', why: !pinned && !favs.includes(null) ? 'Favorites are full. Unpin one first.' : null },
       { id: 'move', label: 'Move', why: beforeOpts?.closest('#fav, #apps') ? null : 'Move it in Favorites or in Apps.' },
+      { id: 'aname', label: 'Rename' },
+      ...(APPS[app].name !== APPS[app].base ? [{ id: 'aorig', label: 'Original name' }] : []),
+      { id: 'hide', label: 'Hide' },
       { id: 'info', label: 'Info' },
       { id: 'del', label: 'Uninstall', why: (NATIVE ? APPS[app].system : BUILT_IN.includes(APPS[app].name)) ? 'Built in. It can\'t be removed.' : null },
     ];
@@ -1358,6 +1396,40 @@
   function closeOpts(refocusIt = true) {
     if (!isOpen('opts')) return;
     closeLayer('opts');
+  }
+  // after a rename or a hide the tiles are drawn again, so focus goes to the app's new tile, or a neighbor of the old one
+  const tileOf = app => app == null ? null : stage.querySelector(`.section:not(.is-off) [data-app="${app}"]`);
+  function landOn(...apps) {
+    arm(); cur = null;
+    TV.focus(apps.map(tileOf).find(Boolean) || stage.querySelector('.section:not(.is-off) [data-f]'));
+  }
+  // Rename: the app's name everywhere in Home Deck (its tile caption, the readout, Jump back in, search). The app
+  // itself keeps its own name. Art tiles show the logo, so there the new name shows when the tile is selected.
+  function renameApp(app, text) {
+    closeOpts();
+    const a = APPS[app], k = appKey(a), t = (text || '').trim();
+    if (t && t !== a.base) RENAMED[k] = t; else delete RENAMED[k];
+    store.set('renamed', RENAMED);
+    a.name = RENAMED[k] || a.base;
+    renderAll(); landOn(app);
+    toast('job', 'Name', a.name, RENAMED[k] ? `Shown as "${a.name}" in Home Deck. The app keeps its own name.` : 'Back to its own name.');
+  }
+  // Hide: the app leaves Apps, Favorites, Jump back in and search, and stays installed. Jump To, Hidden apps brings it back.
+  function hideApp(app) {
+    const el = beforeOpts, near = el && [el.nextElementSibling, el.previousElementSibling].find(s => s?.dataset.app != null);
+    closeOpts();
+    const a = APPS[app];
+    if (!HIDDEN.includes(appKey(a))) HIDDEN.push(appKey(a));
+    store.set('hidden', HIDDEN);
+    if (favs.includes(app)) { favs[favs.indexOf(app)] = null; saveFavs(); }
+    renderAll(); landOn(near?.dataset.app);
+    toast('job', 'Hidden', a.name, 'It stays installed. Bring it back in Jump To, Hidden apps.');
+  }
+  function unhideApp(app) {
+    HIDDEN = HIDDEN.filter(k => k !== appKey(APPS[app]));
+    store.set('hidden', HIDDEN);
+    renderAll();
+    toast('job', 'Apps', `${APPS[app].name} is back`, 'It is in Apps again, in its usual group.');
   }
   // only one port can be the audio out; marking it moves the sound output to the soundbar over ARC
   function setArc(p, on) {
@@ -1397,6 +1469,9 @@
       else { favs[favs.indexOf(null)] = app; toast('job', 'Favorites', `${name} pinned`, 'It took the free spot.'); }
     }
     if (id === 'move') { const el = beforeOpts; closeOpts(); return startMove(cur && cur.dataset.app === el?.dataset.app ? cur : el); }
+    if (id === 'aname') return openKbd(`${name} // new name`, name, t => renameApp(app, t));
+    if (id === 'aorig') return renameApp(app, null);
+    if (id === 'hide') return hideApp(app);
     if (id === 'del') { if (NATIVE) NATIVE.uninstall(APPS[app].pkg); else toast('warn', 'Uninstall', `${name} stays`, 'This is a preview, so nothing is removed.'); }
     if (id === 'pin' || id === 'move') {
       saveFavs(); renderFavs();
@@ -1447,7 +1522,7 @@
     if (place && fav) { favs = [...box.children].map(t => t.dataset.app != null ? +t.dataset.app : null); saveFavs(); }
     if (place && !fav) {
       const order = store.get('order', {});
-      order[box.closest('.row').dataset.group] = [...box.children].map(t => APPS[+t.dataset.app].pkg || APPS[+t.dataset.app].name);
+      order[box.closest('.row').dataset.group] = [...box.children].map(t => appKey(APPS[+t.dataset.app]));
       store.set('order', order);
     }
     if (fav) renderFavs(); else renderApps();
@@ -1505,7 +1580,8 @@
     '<button class="hd-btn skey skey--wide" type="button" data-key=" ">Space</button><button class="hd-btn skey skey--wide" type="button" data-key="DEL">Delete</button>';
   function drawSearch(keepFocus) {
     $('sField').innerHTML = query ? `${esc(query)}<span class="caret"></span>` : '<span class="caret"></span><span class="ph">Type an app name, or press Voice</span>';
-    const hits = APPS.map((a, i) => [a, i]).filter(([a]) => !query || a.name.toLowerCase().includes(query.toLowerCase().trim())).slice(0, 9);
+    const q = query.toLowerCase().trim();   // a renamed app is found by either name; hidden apps aren't found
+    const hits = APPS.map((a, i) => [a, i]).filter(([a, i]) => !isHidden(i) && (!q || a.name.toLowerCase().includes(q) || a.base.toLowerCase().includes(q))).slice(0, 9);
     $('sRes').innerHTML = hits.length ? hits.map(([, i]) => appTile(i, 'art--sm', 'data-res')).join('') : '<span class="search__none">No app by that name on this TV.</span>';
     search.querySelectorAll('.skey, #sMic, #sRes [data-fi]').forEach(el => el.setAttribute('data-f', ''));
     if (keepFocus && !keepFocus.isConnected) { cur = null; TV.focus(search.querySelector('.skey')); }
@@ -1680,12 +1756,42 @@
     WX.city = { name: c[0], lat: c[1], lon: c[2] }; WX.note = ''; store.set('wx-city', WX.city); drawWx();
     clearTimeout(cityTimer); cityTimer = setTimeout(wxFetch, 700);   // wait until the viewer stops on a city
   }
+  /* ---- Update check: off until switched on. Then, once a day, one question to GitHub: which version is the newest release?
+          Nothing is downloaded or installed; a newer one gets a note on screen and in About. The browser preview never asks. */
+  const UPD = { on: !!store.get('upd-on', false), latest: store.get('upd-latest', null), t: store.get('upd-t', 0) || 0, note: '' };
+  const newer = (a, b) => {   // is version a newer than version b ("0.3" vs "0.2.1")
+    const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+    for (let k = 0; k < Math.max(x.length, y.length); k++) { const d = (x[k] || 0) - (y[k] || 0); if (d) return d > 0; }
+    return false;
+  };
+  async function updCheck(force) {
+    if (!UPD.on || !NATIVE) return;                           // off: no network, ever
+    if (!force && Date.now() - UPD.t < 20 * 3600000) return;   // at most about once a day
+    try {
+      const r = await fetch('https://api.github.com/repos/glidiandev/home-deck/releases/latest',
+                            { cache: 'no-store', headers: { Accept: 'application/vnd.github+json' } });
+      if (!r.ok) throw new Error(r.status);
+      const v = String((await r.json()).tag_name || '').replace(/^v/i, '');
+      if (!/^\d+(\.\d+)*$/.test(v)) throw new Error('tag');
+      if (!UPD.on) return;                                     // switched off while waiting
+      UPD.t = Date.now(); UPD.latest = v; store.set('upd-t', UPD.t); store.set('upd-latest', v);
+      UPD.note = newer(v, VER) ? `Home Deck v${v} is out. Get it from glidian.dev/home-deck.` : `Up to date. v${VER} is the newest.`;
+      if (newer(v, VER) && store.get('upd-told', '') !== v) {   // say so once per new version
+        store.set('upd-told', v);
+        toast('reward', 'Update', `Home Deck v${v} is out`, 'Get it from glidian.dev/home-deck, or the releases page on GitHub.', 12000);
+      }
+    } catch { UPD.note = 'Could not reach GitHub. It tries again later.'; }
+    redrawEx('upd');
+  }
+  setTimeout(updCheck, 20000);
+  setInterval(updCheck, 3 * 3600000);
   function exLines() {
     const on = WX.on, cityName = WX.city?.name || 'Pick a city';
     return [
       { id: 'on', name: 'Weather', desc: 'Connects to Open-Meteo (open-meteo.com) for the forecast in your city. No account, no key.', val: on ? 'On' : 'Off', arrows: true },
       ...(on ? [{ id: 'city', sub: true, name: 'City', desc: WX.note || 'Left and right for a list; OK to type any city.', val: cityName, arrows: true },
                 { id: 'unit', sub: true, name: 'Units', desc: 'Fahrenheit or Celsius.', val: WX.unit === 'C' ? '°C' : '°F', arrows: true }] : []),
+      { id: 'upd', name: 'Update check', desc: UPD.on && UPD.note ? UPD.note : 'Asks GitHub (github.com) once a day for the newest version number. Nothing is installed by itself.', val: UPD.on ? 'On' : 'Off', arrows: true },
       { id: 'art', off: true, name: 'Show artwork', desc: 'Would connect to an online film and TV database for posters.', val: 'Coming later' },
       { id: 'voice', off: true, name: 'Voice search', desc: 'Would send your voice to a speech service to turn it into words.', val: 'Coming later' },
     ];
@@ -1703,6 +1809,7 @@
   function exStep(id, d) {
     if (id === 'on') { WX.on = !WX.on; store.set('wx-on', WX.on); if (WX.on && !WX.city) setCity(CITIES[0]); else if (WX.on) wxFetch(); drawWx(); }
     if (id === 'unit') { WX.unit = WX.unit === 'F' ? 'C' : 'F'; store.set('wx-unit', WX.unit); drawWx(); }
+    if (id === 'upd') { UPD.on = !UPD.on; store.set('upd-on', UPD.on); UPD.note = UPD.on && NATIVE ? 'Checking...' : ''; if (UPD.on) updCheck(true); }
     if (id === 'city') {
       const i = CITIES.findIndex(c => c[0] === WX.city?.name);
       setCity(CITIES[(i + d + CITIES.length) % CITIES.length]);
@@ -1902,17 +2009,12 @@
     document.querySelectorAll('.hd-toast').forEach(t => t.remove());
     sleeping = true; spot(); standby.classList.add('on');
     driftTimer = setInterval(drift, 20000);
-    const view = SAVERS[J.saver.i][1];
-    if (view && !reduce) {                                     // a rainy city instead of the clock, full screen over everything
-      rain = document.createElement('iframe'); rain.className = 'standby__rain'; rain.setAttribute('aria-hidden', 'true');
-      rain.src = `rain/index.html?view=${view}${isLite() ? '&light' : ''}`;
-      standby.appendChild(rain); sbPos.hidden = true;
-    }
+    // the clock, a rainy city full screen over everything, or Shuffle; and the time, unless the screen saver clock is off
+    away = AwayScenes.start({ host: standby, clockEl: sbPos, frameClass: 'standby__rain', saver: J.saver.i,
+                              clockOn: J.sclock.i === 0, light: isLite(), reduce });
   }
-  let rain = null;
-  const endRain = () => { if (rain) { rain.remove(); rain = null; } sbPos.hidden = false; };
-  // the rain tells us if this TV can't keep it smooth even when lighter: back to the clock for this time
-  addEventListener('message', e => { if (e.data && e.data.rain === 'too-slow' && rain && e.source === rain.contentWindow) endRain(); });
+  let away = null;
+  const endRain = () => { if (away) { away.stop(); away = null; } sbPos.hidden = false; };
   function wake() { sleeping = false; clearInterval(driftTimer); endRain(); standby.classList.remove('on'); showHints(); }
   const poke = () => { clearTimeout(idleTimer); idleTimer = setTimeout(sleep, IDLE); };
   poke();

@@ -1,6 +1,8 @@
 package dev.glidian.homedeck;
 
 import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -20,6 +22,7 @@ import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.provider.Settings;
+import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.webkit.JavascriptInterface;
 
@@ -389,6 +392,48 @@ final class Bridge {
             default: action = Settings.ACTION_SETTINGS; break;
         }
         return start(new Intent(action)) || start(new Intent(Settings.ACTION_SETTINGS));
+    }
+
+    // ---------------------------------------------------------------- the Home button helper
+
+    /** True if an entry in the enabled accessibility services (full or short form) is Home Deck's own helper. */
+    private boolean isHomeService(String entry) {
+        return new ComponentName(context, HomeKeyService.class).equals(ComponentName.unflattenFromString(entry));
+    }
+
+    /** Whether the Home button helper is switched on. */
+    @JavascriptInterface
+    public boolean homeHelper() {
+        String list = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        if (list != null) for (String s : list.split(":")) if (isHomeService(s)) return true;
+        return false;
+    }
+
+    /**
+     * Switches the Home button helper on or off: "on", "off", or "grant" when Android hasn't been given the one-time
+     * permission for it yet (homeHelperCommand). Any other accessibility services the user has on are kept exactly
+     * as they are.
+     */
+    @JavascriptInterface
+    public String setHomeHelper(boolean on) {
+        ContentResolver cr = context.getContentResolver();
+        try {
+            String list = Settings.Secure.getString(cr, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            List<String> items = new ArrayList<>();
+            if (list != null) for (String s : list.split(":")) if (!s.isEmpty() && !isHomeService(s)) items.add(s);
+            if (on) items.add(new ComponentName(context, HomeKeyService.class).flattenToString());
+            Settings.Secure.putString(cr, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, TextUtils.join(":", items));
+            Settings.Secure.putInt(cr, Settings.Secure.ACCESSIBILITY_ENABLED, items.isEmpty() ? 0 : 1);
+            return on ? "on" : "off";
+        } catch (SecurityException e) {
+            return "grant";
+        }
+    }
+
+    /** The one-time shell command that lets Jump To switch the helper on and off. */
+    @JavascriptInterface
+    public String homeHelperCommand() {
+        return "adb shell pm grant " + context.getPackageName() + " android.permission.WRITE_SECURE_SETTINGS";
     }
 
     // ---------------------------------------------------------------- helpers
