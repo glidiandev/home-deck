@@ -8,7 +8,7 @@
   // the saved theme goes on before the first paint, so the startup screen opens in it instead of Normal's red
   // (same order as THEMES in the main script)
   try {
-    const mode = ['normal', 'lime', 'violet'][JSON.parse(localStorage.getItem('homedeck-theme'))];
+    const mode = ['normal', 'lime', 'violet', 'ice', 'sunset', 'mono'][JSON.parse(localStorage.getItem('homedeck-theme'))];
     if (mode) document.documentElement.setAttribute('data-hd-mode', mode);
   } catch (e) {}
 </script>
@@ -65,7 +65,9 @@
                 linear-gradient(0deg, var(--hd-ground) 0%, rgba(7, 9, 15, .85) 30%, transparent 47%),
                 var(--hd-haze-top); }
   .tint { position: absolute; inset: 0; pointer-events: none; background: var(--acc); opacity: .045; }
-  [data-hd-mode="alert"] .tint, html:not(.has-acc)[data-hd-mode="lime"] .tint, html:not(.has-acc)[data-hd-mode="violet"] .tint { display: none; }
+  [data-hd-mode="alert"] .tint, html:not(.has-acc)[data-hd-mode="lime"] .tint, html:not(.has-acc)[data-hd-mode="violet"] .tint,
+  html:not(.has-acc)[data-hd-mode="ice"] .tint, html:not(.has-acc)[data-hd-mode="sunset"] .tint, html:not(.has-acc)[data-hd-mode="mono"] .tint { display: none; }
+  [data-hd-mode="mono"] .jl__ico img { filter: grayscale(1); }   /* Jump To's little pictures */
   html.lite .bg-glow { display: none; }
   .hd-edge-rails::before { left: 22px; } .hd-edge-rails::after { right: 22px; }
 
@@ -421,6 +423,7 @@
              transition: opacity var(--hd-t-slow) var(--hd-ease-out); }
   .standby.on { opacity: 1; pointer-events: auto; }
   .standby__pos { position: absolute; left: 0; top: 0; width: 760px; display: grid; gap: 10px; padding: 26px 34px; transition: opacity 600ms var(--hd-ease-in-out); }
+  .standby__pos[hidden] { display: none; }
   .standby__pos.fade { opacity: 0; }
   .standby__clock { color: var(--hd-chrome); font-size: 200px; text-shadow: var(--hd-glow-text); }
   .standby__clock .hd-num__frac { color: var(--hd-chrome-dim); }
@@ -669,6 +672,7 @@
   const ICON = (f, kind = '') => `icons/${f}${kind}.webp`;
   const store = { get(k, d) { try { return JSON.parse(localStorage.getItem('homedeck-' + k)) ?? d; } catch { return d; } },
                   set(k, v) { try { localStorage.setItem('homedeck-' + k, JSON.stringify(v)); } catch {} } };
+  store.set('lite-on', false);                                // Lite starts off each time; setLite keeps this in step
   const DEV = NATIVE ? NATIVE.device() : null;
   const deckSub = DEV ? `${DEV.name || 'This TV'} // ${DEV.panel >= 2160 ? '4K' : DEV.panel >= 1080 ? 'HD' : 'TV'} display` : 'Living room // 4K display';
   $('brandSub').textContent = deckSub;
@@ -1124,6 +1128,7 @@
   function showHints(ms = 7000) { $('top').classList.add('show-hints'); clearTimeout(hintTimer); hintTimer = setTimeout(() => $('top').classList.remove('show-hints'), ms); }
   function setLite(on, why) {
     root.classList.toggle('lite', on);
+    store.set('lite-on', !!on);                                 // the TV's screen saver (away.html) reads it
     HD.setCRT(!on && !reduce); HD.setGlitch(!on && !reduce);
     J.lite.i = on ? 1 : 0; if (isOpen('jump')) drawJump('lite');
     if (why) toast('warn', 'Performance', 'This screen looks slow', 'Lite mode is on now. Turn it off in Jump To.', 6000);
@@ -1148,6 +1153,9 @@
     { mode: 'normal', name: 'Normal', note: 'Your color again.' },
     { mode: 'lime', name: 'Lime', note: 'Lime on teal-black.' },
     { mode: 'violet', name: 'Violet', note: 'Violet with a green edge.' },
+    { mode: 'ice', name: 'Ice', note: 'Ice blue on midnight.' },
+    { mode: 'sunset', name: 'Sunset', note: 'Magenta into orange.' },
+    { mode: 'mono', name: 'Mono', note: 'Black, white and gray.' },
   ];
   function setTheme(n, quiet) {   // the line under the name keeps the TV's name and display in every theme
     const t = THEMES[n] || THEMES[0];

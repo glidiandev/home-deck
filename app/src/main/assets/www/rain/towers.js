@@ -107,7 +107,7 @@
           cc.globalCompositeOperation = 'source-over'; cc.globalAlpha = 1; cc.drawImage(L.canvas, 0, 0, CW, CH);
           cc.globalCompositeOperation = 'lighter';
           tvs.forEach(({ L: tl, w }) => { if (tl === L) { cc.globalAlpha = L.wa * w.b * (.5 + Math.random() * .5); cc.fillStyle = col.tv; cc.fillRect(w.x, w.y, W, W * 1.15); } });
-          beacons.forEach(b => { if (b.layer === li && Math.sin(t * 2 + b.p) > .75) blob(b.x, b.y - 1, 2.2, col.red, .85); });   // red lights on the roofs
+          beacons.forEach(b => { if (b.layer === li && Math.sin(t * 2 + b.p) > .75) blob(b.x, b.y - 1, 2.2, col.beacon, .85); });   // lights on the roofs, red in most themes
           if (L.veil) { cc.globalCompositeOperation = 'source-over'; cc.globalAlpha = 1; cc.drawImage(L.veil, 0, 0, CW, CH); }
           if (li === 1) traffic(1, dt);                            // traffic between the middle and the nearest towers
         });

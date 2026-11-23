@@ -681,7 +681,7 @@
       });
     });
   }
-  var MODES = ["normal", "alert", "lime", "violet"];
+  var MODES = ["normal", "alert", "lime", "violet", "ice", "sunset", "mono"];
   function setMode(mode, target) {
     if (MODES.indexOf(mode) === -1) mode = "normal";
     var el = target || html;

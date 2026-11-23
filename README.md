@@ -29,7 +29,7 @@ A 45-second tour of the favorites, Apps, moving an app, Inputs and Jump To: [wat
   its art fading in behind.
 - **Music bar.** What's playing, the artist, the track time, and play/pause. Long titles scroll like a car stereo.
 - **Jump To.** Hold Back anywhere for the quick panel: the TV's picture and sound settings, inputs, the names of
-  the two rows, a theme (Normal, Lime or Violet), an accent color that tints everything, how soon the away screen comes on, what it shows and whether it shows the time, clock seconds, Lite mode, online extras,
+  the two rows, a theme (Normal, Lime, Violet, Ice, Sunset or Mono), an accent color that tints everything, how soon the away screen comes on, what it shows and whether it shows the time, clock seconds, Lite mode, online extras,
   setup, hidden apps, app order, the Home button helper and About.
 - **Away screen.** After 5 minutes of nothing, the screen dims to a clock that moves every 20 seconds, so nothing
   burns in. Pick 1, 3, 5 or 10 minutes in Jump To.
@@ -40,7 +40,8 @@ A 45-second tour of the favorites, Apps, moving an app, Inputs and Jump To: [wat
 - **Shuffle.** The away screen moves between the clock, Window and Downpour every 10 minutes, starting somewhere new
   each time. It's what you get until you pick one yourself. In Lite mode it keeps to the clock.
 - **No clock, if you like.** Turn off Jump To > Screen saver clock and the away screen shows no time at all: the
-  rain has no clock in it, Shuffle only uses the rain, and Clock becomes a plain dark screen.
+  rain has no clock in it, Shuffle only uses the rain (in Lite mode, a plain dark screen), and Clock becomes a plain
+  dark screen.
 - **Screen saver.** The same away screen as your TV's screen saver, for when you're in another app. See
   [Screen saver](#screen-saver).
 - **First-run setup.** Pick your favorites, a color and names for your inputs. Skip it if you like; it's in Jump To

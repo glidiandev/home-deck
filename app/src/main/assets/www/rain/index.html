@@ -10,7 +10,7 @@
 <script>
   // the home screen's theme and accent color, so the rain's neon matches it (same order as THEMES in index.html)
   try {
-    const mode = ['normal', 'lime', 'violet'][JSON.parse(localStorage.getItem('homedeck-theme'))];
+    const mode = ['normal', 'lime', 'violet', 'ice', 'sunset', 'mono'][JSON.parse(localStorage.getItem('homedeck-theme'))];
     if (mode) document.documentElement.setAttribute('data-hd-mode', mode);
     const acc = JSON.parse(localStorage.getItem('homedeck-acc-hex'));
     if (acc) document.documentElement.style.setProperty('--hd-act', acc);

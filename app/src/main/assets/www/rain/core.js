@@ -26,8 +26,16 @@
     cc.setTransform(Q, 0, 0, Q, 0, 0);
     let rnd = scene.seed || 23; const R = () => (rnd = (rnd * 16807) % 2147483647) / 2147483647;
     const col = {};
-    const colors = () => Object.assign(col, { chrome: HD.css('--hd-chrome'), act: HD.css('--hd-act'), magenta: '#ff3dd8', amber: '#ffae3a',
-                                              cyan: '#3df0ff', white: '#f4f0ff', head: '#fff3dc', tail: '#ff2436', red: '#ff1a2e', blue: '#2d6bff', tv: '#7fa8ff' });
+    // the city's fixed lights, and the two themes that bring their own: Ice (blues and white) and Mono (grays, so an
+    // accent color is the only color in it). Police lights stay red and blue everywhere.
+    const LIGHTS = { magenta: '#ff3dd8', amber: '#ffae3a', cyan: '#3df0ff', white: '#f4f0ff', head: '#fff3dc', tail: '#ff2436',
+                     red: '#ff1a2e', blue: '#2d6bff', tv: '#7fa8ff', beacon: '#ff1a2e' };
+    const THEME_LIGHTS = {
+      ice: { magenta: '#2f78ff', amber: '#d4ecff', cyan: '#6fd6ff', white: '#eef6ff', head: '#f2f8ff', tail: '#3f7dff', beacon: '#6fb4ff' },
+      mono: { magenta: '#878c93', amber: '#d2d3d5', cyan: '#b3b7bc', white: '#f0f0f0', head: '#ffffff', tail: '#7c8086', tv: '#a9adb2', beacon: '#c9ccd0' },
+    };
+    const colors = () => Object.assign(col, { chrome: HD.css('--hd-chrome'), act: HD.css('--hd-act') }, LIGHTS,
+                                       THEME_LIGHTS[document.documentElement.getAttribute('data-hd-mode')]);
     colors(); addEventListener('hd-mode', colors);
 
     // ---- stamps: a soft round glow and a beam fading out, one of each per color, made once ----

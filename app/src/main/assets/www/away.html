@@ -16,6 +16,7 @@
              transition: opacity var(--hd-t-slow) var(--hd-ease-out); }
   .standby.on { opacity: 1; }
   .standby__pos { position: absolute; left: 0; top: 0; width: 760px; display: grid; gap: 10px; padding: 26px 34px; transition: opacity 600ms var(--hd-ease-in-out); }
+  .standby__pos[hidden] { display: none; }
   .standby__pos.fade { opacity: 0; }
   .standby__clock { color: var(--hd-chrome); font-size: 200px; text-shadow: var(--hd-glow-text); }
   .standby__clock .hd-num__frac { color: var(--hd-chrome-dim); }
@@ -68,7 +69,7 @@
   // even when lighter, the rain says so and the clock comes back.
   const saver = store.get('saver', AwayScenes.SHUFFLE);
   AwayScenes.start({ host: stage, clockEl: sbPos, frameClass: 'rain', saver: saver >= 0 && saver <= AwayScenes.SHUFFLE ? saver : AwayScenes.SHUFFLE,
-                     clockOn: store.get('saver-clock', 0) !== 1, light: false, reduce });
+                     clockOn: store.get('saver-clock', 0) !== 1, light: store.get('lite-on', false) === true, reduce });
 
   // Weather: only when it's switched on in the home screen (Jump To > Online extras), from the same service and
   // the same saved reading, refreshed every 30 minutes. Off, this page never calls the network.
